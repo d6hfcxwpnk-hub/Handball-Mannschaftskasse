@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Handball Kasse</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --c-bg: #0f1117;
+    --c-surface: #1a1d27;
+    --c-surface2: #22263a;
+    --c-border: #2e3350;
+    --c-accent: #e8ff3a;
+    --c-accent2: #ff6b35;
+    --c-text: #f0f2ff;
+    --c-muted: #7a80a0;
+    --c-success: #3affb0;
+    --c-danger: #ff4d6d;
+    --c-warn: #ffaa00;
+    --font-head: 'Barlow Condensed', sans-serif;
+    --font-body: 'Barlow', sans-serif;
+    --r: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--c-bg);
+    color: var(--c-text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  .app-header {
+    background: var(--c-surface);
+    border-bottom: 2px solid var(--c-accent);
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 58px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-logo {
+    font-family: var(--font-head);
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--c-accent);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .app-logo span { color: var(--c-text); }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .user-badge {
+    background: var(--c-surface2);
+    border: 1px solid var(--c-border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 13px;
+    color: var(--c-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .user-badge strong { color: var(--c-text); }
+  .btn-switch {
+    background: none;
+    border: 1px solid var(--c-border);
+    color: var(--c-muted);
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-family: var(--font-body);
+    font-size: 13px;
+    transition: all .15s;
+  }
+  .btn-switch:hover { border-color: var(--c-accent); color: var(--c-accent); }
+
+  /* NAV */
+  .app-nav {
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+    display: flex;
+    padding: 0 20px;
+  }
+  .nav-tab {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--c-muted);
+    cursor: pointer;
+    font-family: var(--font-head);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: .5px;
+    padding: 14px 20px 11px;
+    text-transform: uppercase;
+    transition: all .15s;
+  }
+  .nav-tab:hover { color: var(--c-text); }
+  .nav-tab.active { color: var(--c-accent); border-bottom-color: var(--c-accent); }
+
+  /* MAIN */
+  .app-main { max-width: 1100px; margin: 0 auto; padding: 28px 20px; }
+
+  /* SECTION */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* CARDS */
+  .card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r);
+    padding: 22px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    color: var(--c-accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title svg { width: 18px; height: 18px; }
+
+  /* GRID */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  @media(max-width:700px) { .grid-2,.grid-3 { grid-template-columns:1fr; } }
+
+  /* STAT BOXES */
+  .stat-box {
+    background: var(--c-surface2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--c-muted); }
+  .stat-value { font-family: var(--font-head); font-size: 32px; font-weight: 700; }
+  .stat-value.green { color: var(--c-success); }
+  .stat-value.red { color: var(--c-danger); }
+  .stat-value.yellow { color: var(--c-accent); }
+
+  /* FORMS */
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
+  label { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--c-muted); }
+  input, select, textarea {
+    background: var(--c-surface2);
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+    color: var(--c-text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    padding: 8px 12px;
+    outline: none;
+    transition: border .15s;
+    width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--c-accent); }
+  select option { background: var(--c-surface2); }
+  textarea { resize: vertical; min-height: 70px; }
+
+  /* BUTTONS */
+  .btn {
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: var(--font-head);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    padding: 9px 20px;
+    text-transform: uppercase;
+    transition: all .15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .btn-primary { background: var(--c-accent); color: #0f1117; }
+  .btn-primary:hover { background: #d4eb00; }
+  .btn-secondary { background: var(--c-surface2); color: var(--c-text); border: 1px solid var(--c-border); }
+  .btn-secondary:hover { border-color: var(--c-accent); color: var(--c-accent); }
+  .btn-danger { background: var(--c-danger); color: #fff; }
+  .btn-danger:hover { background: #e03057; }
+  .btn-sm { font-size: 12px; padding: 5px 12px; }
+  .btn-icon { background: none; border: none; cursor: pointer; color: var(--c-muted); padding: 4px; border-radius: 4px; transition: color .15s; }
+  .btn-icon:hover { color: var(--c-danger); }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--c-surface2);
+    border-bottom: 2px solid var(--c-border);
+    color: var(--c-muted);
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .8px;
+    padding: 10px 14px;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  td {
+    border-bottom: 1px solid var(--c-border);
+    color: var(--c-text);
+    font-size: 14px;
+    padding: 10px 14px;
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .amount-pos { color: var(--c-success); font-weight: 600; }
+  .amount-neg { color: var(--c-danger); font-weight: 600; }
+  .tag {
+    display: inline-block;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: .5px;
+  }
+  .tag-einnahme { background: rgba(58,255,176,.15); color: var(--c-success); }
+  .tag-ausgabe { background: rgba(255,77,109,.15); color: var(--c-danger); }
+  .tag-strafe { background: rgba(255,106,53,.15); color: var(--c-accent2); }
+  .tag-schuld { background: rgba(255,170,0,.15); color: var(--c-warn); }
+  .tag-admin { background: rgba(232,255,58,.15); color: var(--c-accent); }
+  .tag-spieler { background: rgba(255,255,255,.1); color: var(--c-muted); }
+
+  /* RANGLISTE */
+  .rank-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-num {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 800;
+    width: 32px;
+    text-align: center;
+    color: var(--c-muted);
+  }
+  .rank-num.gold { color: #ffd700; }
+  .rank-num.silver { color: #c0c0c0; }
+  .rank-num.bronze { color: #cd7f32; }
+  .rank-name { flex: 1; font-weight: 500; }
+  .rank-bar-wrap { flex: 2; background: var(--c-surface2); border-radius: 4px; height: 8px; }
+  .rank-bar { background: var(--c-accent2); height: 8px; border-radius: 4px; transition: width .4s; }
+  .rank-amount { font-family: var(--font-head); font-size: 18px; font-weight: 700; color: var(--c-accent2); min-width: 60px; text-align: right; }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: 14px;
+    padding: 28px;
+    width: 90%;
+    max-width: 440px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal-title {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--c-accent);
+    margin-bottom: 20px;
+  }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+
+  /* ALERT */
+  .alert {
+    border-radius: 7px;
+    font-size: 13px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .alert.show { display: block; }
+  .alert-success { background: rgba(58,255,176,.1); border: 1px solid var(--c-success); color: var(--c-success); }
+  .alert-error { background: rgba(255,77,109,.1); border: 1px solid var(--c-danger); color: var(--c-danger); }
+
+  /* LOGIN */
+  .login-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--c-bg);
+  }
+  .login-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: 16px;
+    padding: 40px 36px;
+    width: 360px;
+    text-align: center;
+  }
+  .login-logo {
+    font-family: var(--font-head);
+    font-size: 38px;
+    font-weight: 800;
+    color: var(--c-accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .login-sub { color: var(--c-muted); font-size: 13px; margin-bottom: 30px; }
+  .login-list { display: flex; flex-direction: column; gap: 10px; }
+  .login-player-btn {
+    background: var(--c-surface2);
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    color: var(--c-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 500;
+    padding: 12px 16px;
+    transition: all .15s;
+    width: 100%;
+  }
+  .login-player-btn:hover { border-color: var(--c-accent); color: var(--c-accent); }
+  .empty-state {
+    color: var(--c-muted);
+    font-size: 14px;
+    padding: 30px;
+    text-align: center;
+  }
+  .divider { height: 1px; background: var(--c-border); margin: 16px 0; }
+  .inline-flex { display: inline-flex; align-items: center; gap: 8px; }
+  .w-full { width: 100%; }
+  .mt-2 { margin-top: 8px; }
+  .mb-2 { margin-bottom: 8px; }
+  .text-muted { color: var(--c-muted); font-size: 13px; }
+  .upload-area {
+    border: 2px dashed var(--c-border);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border .15s;
+  }
+  .upload-area:hover { border-color: var(--c-accent); }
+  .phrase-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--c-surface2);
+    border: 1px solid var(--c-border);
+    border-radius: 20px;
+    font-size: 13px;
+    padding: 4px 12px;
+    margin: 3px;
+  }
+  .phrase-chip button { background: none; border: none; color: var(--c-muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 2px; }
+  .phrase-chip button:hover { color: var(--c-danger); }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-card">
+    <div class="login-logo">🤾 Kasse</div>
+    <div class="login-sub">Wer bist du?</div>
+    <div class="login-list" id="loginList">
+      <div class="empty-state">Noch keine Spieler angelegt.<br>Lade die Seite neu oder wende dich an den Admin.</div>
+    </div>
+    <div id="loginAdminNote" style="margin-top:14px; display:none;">
+      <div class="divider"></div>
+      <button class="btn btn-secondary w-full" onclick="loginAs('__admin__')">🔐 Als Admin einloggen</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appWrap" style="display:none;">
+  <header class="app-header">
+    <div class="app-logo">🤾 <span>Handball</span> Kasse</div>
+    <div class="header-right">
+      <div class="user-badge">Eingeloggt als: <strong id="headerUser">–</strong></div>
+      <button class="btn-switch" onclick="logout()">Wechseln</button>
+    </div>
+  </header>
+  <nav class="app-nav" id="appNav">
+    <button class="nav-tab active" data-tab="kasse" onclick="switchTab('kasse')">Kasse</button>
+    <button class="nav-tab" data-tab="phrasenschwein" onclick="switchTab('phrasenschwein')">Phrasenschwein</button>
+    <button class="nav-tab admin-only" data-tab="spieler" onclick="switchTab('spieler')" style="display:none;">Spieler</button>
+    <button class="nav-tab admin-only" data-tab="phrasen" onclick="switchTab('phrasen')" style="display:none;">Phrasen</button>
+  </nav>
+
+  <main class="app-main">
+
+    <!-- KASSE -->
+    <div class="section active" id="tab-kasse">
+      <div class="grid-3" style="margin-bottom:20px;">
+        <div class="stat-box">
+          <div class="stat-label">Kassenstand</div>
+          <div class="stat-value yellow" id="stat-saldo">€0,00</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Einnahmen</div>
+          <div class="stat-value green" id="stat-einnahmen">€0,00</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Ausgaben</div>
+          <div class="stat-value red" id="stat-ausgaben">€0,00</div>
+        </div>
+      </div>
+
+      <div class="card admin-only" id="kasseForm">
+        <div class="card-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Buchung erfassen
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Typ</label>
+            <select id="buch-typ">
+              <option value="einnahme">Einnahme</option>
+              <option value="ausgabe">Ausgabe</option>
+              <option value="schuld">Schulden (Spieler)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Betrag (€)</label>
+            <input type="number" id="buch-betrag" placeholder="0.00" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Datum</label>
+            <input type="date" id="buch-datum">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" id="buch-spieler-wrap" style="display:none;">
+            <label>Spieler</label>
+            <select id="buch-spieler"></select>
+          </div>
+          <div class="form-group" style="flex:3;">
+            <label>Beschreibung</label>
+            <input type="text" id="buch-beschreibung" placeholder="z. B. Turniergebühr, Trikots…">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addBuchung()">Buchung speichern</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="justify-content:space-between;">
+          <span>Buchungshistorie</span>
+          <button class="btn btn-secondary btn-sm admin-only" id="exportBtn" onclick="exportKasse()">⬇ Export Excel</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Typ</th>
+                <th>Beschreibung</th>
+                <th>Spieler</th>
+                <th style="text-align:right;">Betrag</th>
+                <th class="admin-only"></th>
+              </tr>
+            </thead>
+            <tbody id="buchungenBody">
+              <tr><td colspan="6" class="empty-state">Noch keine Buchungen</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Schulden-Übersicht -->
+      <div class="card">
+        <div class="card-title">Schulden-Übersicht</div>
+        <div id="schuldenList" class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Spieler</th><th style="text-align:right;">Offen (€)</th></tr>
+            </thead>
+            <tbody id="schuldenBody">
+              <tr><td colspan="2" class="empty-state">Keine offenen Schulden</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHRASENSCHWEIN -->
+    <div class="section" id="tab-phrasenschwein">
+      <div class="card">
+        <div class="card-title">Strafe melden</div>
+        <div class="alert alert-success" id="phraseAlert">✓ Strafe wurde gebucht!</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Spieler</label>
+            <select id="phrase-spieler"></select>
+          </div>
+          <div class="form-group" style="flex:3;">
+            <label>Was war die Phrase / Strafe?</label>
+            <input type="text" id="phrase-text" placeholder="Freitext eingeben…">
+          </div>
+          <div class="form-group" style="max-width:120px;">
+            <label>Betrag (€)</label>
+            <input type="number" id="phrase-betrag" value="0.50" step="0.01" min="0">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addStrafe()">💰 Strafe buchen</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🏆 Strafen-Rangliste</div>
+        <div id="ranglisteWrap">
+          <div class="empty-state">Noch keine Strafen verbucht</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Strafenhistorie</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Datum</th><th>Spieler</th><th>Phrase</th><th style="text-align:right;">Betrag</th><th class="admin-only"></th></tr>
+            </thead>
+            <tbody id="strafenBody">
+              <tr><td colspan="5" class="empty-state">Noch keine Strafen</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPIELER (Admin) -->
+    <div class="section" id="tab-spieler">
+      <div class="card">
+        <div class="card-title">Spieler hinzufügen</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="spieler-name" placeholder="Vorname Nachname">
+          </div>
+          <div class="form-group">
+            <label>Rolle</label>
+            <select id="spieler-rolle">
+              <option value="spieler">Spieler</option>
+              <option value="admin">Admin / Kassenwart</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addSpieler()">Spieler anlegen</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Spielerliste</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Rolle</th><th></th></tr>
+            </thead>
+            <tbody id="spielerBody">
+              <tr><td colspan="3" class="empty-state">Noch keine Spieler</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHRASEN (Admin) -->
+    <div class="section" id="tab-phrasen">
+      <div class="card">
+        <div class="card-title">Neuen Strafenkatalog-Eintrag anlegen</div>
+        <div class="form-row">
+          <div class="form-group" style="flex:3;">
+            <label>Phrase / Strafbezeichnung</label>
+            <input type="text" id="phrase-name" placeholder="z. B. Zu spät zum Training">
+          </div>
+          <div class="form-group" style="max-width:140px;">
+            <label>Standardbetrag (€)</label>
+            <input type="number" id="phrase-standard-betrag" value="0.50" step="0.01" min="0">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addPhrase()">Phrase speichern</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Strafenkatalog importieren (Excel)</div>
+        <p class="text-muted mb-2">Excel-Datei mit zwei Spalten: <strong>Phrase</strong> und <strong>Betrag</strong> (in €). Die erste Zeile wird als Header übersprungen.</p>
+        <div class="upload-area" onclick="document.getElementById('xlsxImport').click()">
+          <div style="font-size:28px; margin-bottom:6px;">📂</div>
+          <div>Excel-Datei auswählen oder hierher ziehen</div>
+          <div class="text-muted" style="margin-top:4px; font-size:12px;">.xlsx, .xls</div>
+          <input type="file" id="xlsxImport" accept=".xlsx,.xls" style="display:none;" onchange="importXlsx(this)">
+        </div>
+        <div class="alert alert-success mt-2" id="importAlert"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Gespeicherte Phrasen</div>
+        <div id="phrasenChips">
+          <div class="empty-state">Noch keine Phrasen angelegt</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">Eintrag löschen?</div>
+    <p style="color:var(--c-muted); font-size:14px;">Dieser Schritt kann nicht rückgängig gemacht werden.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-danger" id="confirmDeleteBtn">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STORAGE (shared via window.storage API)
+// ============================================================
+const KEYS = {
+  spieler: 'hb:spieler',
+  buchungen: 'hb:buchungen',
+  phrasen: 'hb:phrasen',
+};
+
+async function load(key) {
+  try {
+    const r = await window.storage.get(key, true);
+    return r ? JSON.parse(r.value) : [];
+  } catch { return []; }
+}
+
+async function save(key, data) {
+  try { await window.storage.set(key, JSON.stringify(data), true); } catch(e) { console.error(e); }
+}
+
+// ============================================================
+// STATE
+// ============================================================
+let currentUser = null; // {id, name, rolle}
+let spielerList = [];
+let buchungenList = [];
+let phrasenList = [];
+let pendingDeleteFn = null;
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  spielerList = await load(KEYS.spieler);
+  buchungenList = await load(KEYS.buchungen);
+  phrasenList = await load(KEYS.phrasen);
+
+  // Set today date
+  document.getElementById('buch-datum').value = new Date().toISOString().split('T')[0];
+
+  // Show login
+  renderLogin();
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+function renderLogin() {
+  const list = document.getElementById('loginList');
+  const adminNote = document.getElementById('loginAdminNote');
+
+  if (spielerList.length === 0) {
+    list.innerHTML = '<div class="empty-state">Noch keine Spieler angelegt.</div>';
+    adminNote.style.display = 'block';
+    return;
+  }
+
+  adminNote.style.display = 'block';
+  list.innerHTML = spielerList.map(s => `
+    <button class="login-player-btn" onclick="loginAs('${s.id}')">
+      <span>${s.name}</span>
+      <span class="tag tag-${s.rolle}">${s.rolle === 'admin' ? 'Admin' : 'Spieler'}</span>
+    </button>
+  `).join('');
+}
+
+function loginAs(id) {
+  if (id === '__admin__') {
+    currentUser = { id: '__admin__', name: 'Admin', rolle: 'admin' };
+  } else {
+    currentUser = spielerList.find(s => s.id === id);
+  }
+  if (!currentUser) return;
+
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('appWrap').style.display = 'block';
+  document.getElementById('headerUser').textContent = currentUser.name;
+
+  const isAdmin = currentUser.rolle === 'admin';
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none';
+  });
+
+  renderAll();
+}
+
+function logout() {
+  currentUser = null;
+  document.getElementById('loginWrap').style.display = 'flex';
+  document.getElementById('appWrap').style.display = 'none';
+  renderLogin();
+}
+
+// ============================================================
+// TAB NAVIGATION
+// ============================================================
+function switchTab(tab) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+}
+
+// ============================================================
+// SPIELER
+// ============================================================
+function addSpieler() {
+  const name = document.getElementById('spieler-name').value.trim();
+  const rolle = document.getElementById('spieler-rolle').value;
+  if (!name) return;
+
+  const spieler = { id: Date.now().toString(), name, rolle };
+  spielerList.push(spieler);
+  save(KEYS.spieler, spielerList);
+  document.getElementById('spieler-name').value = '';
+  renderAll();
+}
+
+function deleteSpieler(id) {
+  confirmDelete(() => {
+    spielerList = spielerList.filter(s => s.id !== id);
+    save(KEYS.spieler, spielerList);
+    renderAll();
+  });
+}
+
+function renderSpieler() {
+  const tbody = document.getElementById('spielerBody');
+  if (spielerList.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Noch keine Spieler</td></tr>';
+    return;
+  }
+  tbody.innerHTML = spielerList.map(s => `
+    <tr>
+      <td>${s.name}</td>
+      <td><span class="tag tag-${s.rolle}">${s.rolle === 'admin' ? 'Admin' : 'Spieler'}</span></td>
+      <td>
+        <button class="btn-icon" onclick="deleteSpieler('${s.id}')" title="Löschen">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+
+  // Populate spieler dropdowns
+  const opts = spielerList.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  document.getElementById('buch-spieler').innerHTML = opts;
+  document.getElementById('phrase-spieler').innerHTML = opts;
+}
+
+// ============================================================
+// PHRASEN
+// ============================================================
+function addPhrase() {
+  const name = document.getElementById('phrase-name').value.trim();
+  const betrag = parseFloat(document.getElementById('phrase-standard-betrag').value) || 0.50;
+  if (!name) return;
+
+  phrasenList.push({ id: Date.now().toString(), name, betrag });
+  save(KEYS.phrasen, phrasenList);
+  document.getElementById('phrase-name').value = '';
+  renderPhrsen();
+}
+
+function deletePhrase(id) {
+  phrasenList = phrasenList.filter(p => p.id !== id);
+  save(KEYS.phrasen, phrasenList);
+  renderPhrsen();
+}
+
+function importXlsx(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const wb = XLSX.read(e.target.result, { type: 'binary' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    let count = 0;
+    rows.slice(1).forEach(row => {
+      const name = (row[0] || '').toString().trim();
+      const betrag = parseFloat(row[1]) || 0.50;
+      if (name) {
+        phrasenList.push({ id: Date.now().toString() + Math.random(), name, betrag });
+        count++;
+      }
+    });
+    save(KEYS.phrasen, phrasenList);
+    renderPhrsen();
+    const al = document.getElementById('importAlert');
+    al.textContent = `✓ ${count} Phrasen importiert`;
+    al.classList.add('show');
+    setTimeout(() => al.classList.remove('show'), 3000);
+    input.value = '';
+  };
+  reader.readAsBinaryString(file);
+}
+
+function renderPhrsen() {
+  const wrap = document.getElementById('phrasenChips');
+  if (phrasenList.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">Noch keine Phrasen angelegt</div>';
+    return;
+  }
+  wrap.innerHTML = phrasenList.map(p => `
+    <span class="phrase-chip">
+      ${p.name} <span style="color:var(--c-accent2); font-weight:600;">€${p.betrag.toFixed(2)}</span>
+      <button onclick="deletePhrase('${p.id}')" title="Löschen">×</button>
+    </span>
+  `).join('');
+}
+
+// ============================================================
+// BUCHUNGEN / KASSE
+// ============================================================
+document.getElementById('buch-typ').addEventListener('change', function() {
+  document.getElementById('buch-spieler-wrap').style.display =
+    this.value === 'schuld' ? 'block' : 'none';
+});
+
+function addBuchung() {
+  const typ = document.getElementById('buch-typ').value;
+  const betrag = parseFloat(document.getElementById('buch-betrag').value);
+  const datum = document.getElementById('buch-datum').value;
+  const beschreibung = document.getElementById('buch-beschreibung').value.trim();
+  const spielerId = document.getElementById('buch-spieler').value;
+
+  if (!betrag || betrag <= 0 || !datum || !beschreibung) return;
+
+  let spielerName = '';
+  if (typ === 'schuld') {
+    const s = spielerList.find(s => s.id === spielerId);
+    spielerName = s ? s.name : '';
+  }
+
+  buchungenList.unshift({
+    id: Date.now().toString(),
+    typ, betrag, datum, beschreibung,
+    spielerId: typ === 'schuld' ? spielerId : '',
+    spielerName
+  });
+  save(KEYS.buchungen, buchungenList);
+  document.getElementById('buch-betrag').value = '';
+  document.getElementById('buch-beschreibung').value = '';
+  renderKasse();
+}
+
+function deleteBuchung(id) {
+  confirmDelete(() => {
+    buchungenList = buchungenList.filter(b => b.id !== id);
+    save(KEYS.buchungen, buchungenList);
+    renderKasse();
+    renderRangliste();
+  });
+}
+
+function renderKasse() {
+  const isAdmin = currentUser && currentUser.rolle === 'admin';
+  let einnahmen = 0, ausgaben = 0;
+
+  // For non-admins, filter to show own schulden + all general entries
+  const visible = buchungenList.filter(b => {
+    if (isAdmin) return true;
+    if (b.typ === 'schuld') return b.spielerId === currentUser.id;
+    return true;
+  });
+
+  buchungenList.forEach(b => {
+    if (b.typ === 'einnahme' || b.typ === 'strafe') einnahmen += b.betrag;
+    if (b.typ === 'ausgabe') ausgaben += b.betrag;
+  });
+
+  const saldo = einnahmen - ausgaben;
+  document.getElementById('stat-saldo').textContent = fmt(saldo);
+  document.getElementById('stat-einnahmen').textContent = fmt(einnahmen);
+  document.getElementById('stat-ausgaben').textContent = fmt(ausgaben);
+
+  const tbody = document.getElementById('buchungenBody');
+  if (visible.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Noch keine Buchungen</td></tr>';
+  } else {
+    tbody.innerHTML = visible.map(b => `
+      <tr>
+        <td>${b.datum}</td>
+        <td><span class="tag tag-${b.typ}">${typLabel(b.typ)}</span></td>
+        <td>${b.beschreibung}</td>
+        <td>${b.spielerName || '–'}</td>
+        <td style="text-align:right;" class="${b.typ === 'ausgabe' ? 'amount-neg' : 'amount-pos'}">${b.typ === 'ausgabe' ? '−' : '+'}${fmt(b.betrag)}</td>
+        <td class="admin-only">
+          ${isAdmin ? `<button class="btn-icon" onclick="deleteBuchung('${b.id}')">🗑</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // Schulden
+  const schuldenMap = {};
+  buchungenList.filter(b => b.typ === 'schuld').forEach(b => {
+    schuldenMap[b.spielerName] = (schuldenMap[b.spielerName] || 0) + b.betrag;
+  });
+  const schuldEntries = Object.entries(schuldenMap).filter(([,v]) => v > 0);
+  const schuldenBody = document.getElementById('schuldenBody');
+  if (schuldEntries.length === 0) {
+    schuldenBody.innerHTML = '<tr><td colspan="2" class="empty-state">Keine offenen Schulden</td></tr>';
+  } else {
+    schuldenBody.innerHTML = schuldEntries.map(([name, betrag]) => `
+      <tr><td>${name}</td><td style="text-align:right;" class="amount-neg">−${fmt(betrag)}</td></tr>
+    `).join('');
+  }
+}
+
+function typLabel(typ) {
+  return { einnahme: 'Einnahme', ausgabe: 'Ausgabe', strafe: 'Strafe', schuld: 'Schuld' }[typ] || typ;
+}
+
+function fmt(n) {
+  return '€' + Math.abs(n).toFixed(2).replace('.', ',');
+}
+
+// ============================================================
+// STRAFEN / PHRASENSCHWEIN
+// ============================================================
+function addStrafe() {
+  const spielerId = document.getElementById('phrase-spieler').value;
+  const text = document.getElementById('phrase-text').value.trim();
+  const betrag = parseFloat(document.getElementById('phrase-betrag').value) || 0.50;
+
+  if (!spielerId || !text) return;
+
+  const spieler = spielerList.find(s => s.id === spielerId);
+  if (!spieler) return;
+
+  const datum = new Date().toISOString().split('T')[0];
+  buchungenList.unshift({
+    id: Date.now().toString(),
+    typ: 'strafe',
+    betrag,
+    datum,
+    beschreibung: text,
+    spielerId,
+    spielerName: spieler.name,
+    gemEldet_von: currentUser.name
+  });
+  save(KEYS.buchungen, buchungenList);
+
+  document.getElementById('phrase-text').value = '';
+  document.getElementById('phrase-betrag').value = '0.50';
+
+  const al = document.getElementById('phraseAlert');
+  al.classList.add('show');
+  setTimeout(() => al.classList.remove('show'), 2500);
+
+  renderKasse();
+  renderRangliste();
+  renderStrafen();
+}
+
+function deleteStrafe(id) {
+  confirmDelete(() => {
+    buchungenList = buchungenList.filter(b => b.id !== id);
+    save(KEYS.buchungen, buchungenList);
+    renderKasse();
+    renderRangliste();
+    renderStrafen();
+  });
+}
+
+function renderRangliste() {
+  const strafenMap = {};
+  buchungenList.filter(b => b.typ === 'strafe').forEach(b => {
+    if (!strafenMap[b.spielerName]) strafenMap[b.spielerName] = { total: 0, count: 0 };
+    strafenMap[b.spielerName].total += b.betrag;
+    strafenMap[b.spielerName].count++;
+  });
+
+  const sorted = Object.entries(strafenMap).sort((a, b) => b[1].total - a[1].total);
+  const wrap = document.getElementById('ranglisteWrap');
+  if (sorted.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">Noch keine Strafen verbucht</div>';
+    return;
+  }
+  const max = sorted[0][1].total;
+  const medals = ['gold', 'silver', 'bronze'];
+  wrap.innerHTML = sorted.map(([name, data], i) => `
+    <div class="rank-row">
+      <div class="rank-num ${medals[i] || ''}">${i + 1}</div>
+      <div class="rank-name">${name}<br><span style="font-size:12px; color:var(--c-muted);">${data.count} Strafe${data.count !== 1 ? 'n' : ''}</span></div>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${(data.total / max * 100).toFixed(0)}%"></div></div>
+      <div class="rank-amount">${fmt(data.total)}</div>
+    </div>
+  `).join('');
+}
+
+function renderStrafen() {
+  const isAdmin = currentUser && currentUser.rolle === 'admin';
+  const strafen = buchungenList.filter(b => b.typ === 'strafe');
+  const tbody = document.getElementById('strafenBody');
+  if (strafen.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Noch keine Strafen</td></tr>';
+    return;
+  }
+  tbody.innerHTML = strafen.map(b => `
+    <tr>
+      <td>${b.datum}</td>
+      <td>${b.spielerName}</td>
+      <td>${b.beschreibung}</td>
+      <td style="text-align:right;" class="amount-neg">−${fmt(b.betrag)}</td>
+      <td class="admin-only">
+        ${isAdmin ? `<button class="btn-icon" onclick="deleteStrafe('${b.id}')">🗑</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+function exportKasse() {
+  const rows = buchungenList.map(b => ({
+    'Datum': b.datum,
+    'Typ': typLabel(b.typ),
+    'Beschreibung': b.beschreibung,
+    'Spieler': b.spielerName || '',
+    'Betrag (€)': (b.typ === 'ausgabe' ? -1 : 1) * b.betrag,
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Buchungen');
+
+  // Schulden sheet
+  const schuldenMap = {};
+  buchungenList.filter(b => b.typ === 'schuld').forEach(b => {
+    schuldenMap[b.spielerName] = (schuldenMap[b.spielerName] || 0) + b.betrag;
+  });
+  const schuldenRows = Object.entries(schuldenMap).map(([name, betrag]) => ({ 'Spieler': name, 'Schulden (€)': betrag }));
+  if (schuldenRows.length > 0) {
+    const ws2 = XLSX.utils.json_to_sheet(schuldenRows);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Schulden');
+  }
+
+  // Rangliste sheet
+  const strafenMap = {};
+  buchungenList.filter(b => b.typ === 'strafe').forEach(b => {
+    if (!strafenMap[b.spielerName]) strafenMap[b.spielerName] = { total: 0, count: 0 };
+    strafenMap[b.spielerName].total += b.betrag;
+    strafenMap[b.spielerName].count++;
+  });
+  const rangRows = Object.entries(strafenMap).sort((a, b) => b[1].total - a[1].total)
+    .map(([name, d], i) => ({ 'Rang': i + 1, 'Spieler': name, 'Strafen': d.count, 'Gesamt (€)': d.total }));
+  if (rangRows.length > 0) {
+    const ws3 = XLSX.utils.json_to_sheet(rangRows);
+    XLSX.utils.book_append_sheet(wb, ws3, 'Rangliste');
+  }
+
+  XLSX.writeFile(wb, `Handball-Kasse-${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ============================================================
+// MODAL / DELETE
+// ============================================================
+function confirmDelete(fn) {
+  pendingDeleteFn = fn;
+  document.getElementById('deleteModal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('deleteModal').classList.remove('open');
+  pendingDeleteFn = null;
+}
+document.getElementById('confirmDeleteBtn').onclick = () => {
+  if (pendingDeleteFn) pendingDeleteFn();
+  closeModal();
+};
+document.getElementById('deleteModal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('deleteModal')) closeModal();
+});
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+function renderAll() {
+  renderSpieler();
+  renderPhrsen();
+  renderKasse();
+  renderRangliste();
+  renderStrafen();
+}
+
+// ============================================================
+// START
+// ============================================================
+init();
+</script>
+</body>
+</html>
