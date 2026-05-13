@@ -6,8 +6,53 @@
 <title>Handball Kasse</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     FIREBASE SDK
+     ═══════════════════════════════════════════════════════════ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ╔══════════════════════════════════════════════════════════╗
+// ║  FIREBASE KONFIGURATION – hier eintragen                 ║
+// ║  (Werte aus Firebase Console → Projekteinstellungen)     ║
+// ╚══════════════════════════════════════════════════════════╝
+const firebaseConfig = {
+  apiKey: "AIzaSyAUQT4XVtBCD81hIcD4a6x2Z2tL7uFNzNs",
+  authDomain: "mannschaftskasse-78fb0.firebaseapp.com",
+  databaseURL: "https://mannschaftskasse-78fb0-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "mannschaftskasse-78fb0",
+  storageBucket: "mannschaftskasse-78fb0.firebasestorage.app",
+  messagingSenderId: "223907068911",
+  appId: "1:223907068911:web:458515fa87cbfd7ef6141a",
+  measurementId: "G-06Z2BBJLF0"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+
+// ── Speichern ───────────────────────────────────────────────
+window.fbSet = async function(path, data) {
+  await set(ref(db, path), data);
+};
+
+// ── Laden (einmalig) ────────────────────────────────────────
+window.fbLoad = function(path, cb) {
+  onValue(ref(db, path), snap => cb(snap.val()), { onlyOnce: true });
+};
+
+// ── Echtzeit-Listener ───────────────────────────────────────
+window.fbListen = function(path, cb) {
+  onValue(ref(db, path), snap => cb(snap.val()));
+};
+
+// Signal: Firebase bereit
+window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
 <style>
-:root {
+:root{
   --bg:#0f1117;--surf:#1a1d27;--surf2:#22263a;--border:#2e3350;
   --acc:#e8ff3a;--acc2:#ff6b35;--text:#f0f2ff;--muted:#7a80a0;
   --ok:#3affb0;--err:#ff4d6d;--warn:#ffaa00;
@@ -16,34 +61,45 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px;min-height:100vh}
 
+/* ── LOGIN ── */
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center}
-.login-card{background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:36px;width:380px}
+.login-card{background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:36px;width:400px}
 .login-logo{font-family:var(--fh);font-size:36px;font-weight:800;color:var(--acc);letter-spacing:2px;text-align:center;margin-bottom:4px}
-.login-sub{color:var(--muted);font-size:13px;text-align:center;margin-bottom:22px}
-.login-list{display:flex;flex-direction:column;gap:8px}
+.login-sub{color:var(--muted);font-size:13px;text-align:center;margin-bottom:28px}
+.login-modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0}
+.login-mode-btn{background:var(--surf2);border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;font-family:var(--fb);font-size:14px;font-weight:500;padding:20px 12px;transition:all .15s}
+.login-mode-btn:hover{border-color:var(--acc);color:var(--acc)}
+.login-mode-btn .ico{font-size:28px}
+.login-mode-btn.admin:hover{border-color:var(--acc2);color:var(--acc2)}
+
+/* Spieler-Auswahl Panel */
+.spieler-panel{display:none;margin-top:16px;flex-direction:column;gap:8px}
+.spieler-panel.open{display:flex}
 .l-btn{background:var(--surf2);border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-family:var(--fb);font-size:15px;font-weight:500;padding:11px 16px;transition:all .15s;width:100%}
 .l-btn:hover{border-color:var(--acc);color:var(--acc)}
-.divider{height:1px;background:var(--border);margin:16px 0}
-.admin-btn{background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:var(--fb);font-size:14px;padding:10px;transition:all .15s;width:100%}
-.admin-btn:hover{border-color:var(--acc);color:var(--acc)}
 
-.pin-wrap{overflow:hidden;max-height:0;transition:max-height .3s ease}
-.pin-wrap.open{max-height:200px}
-.pin-inner{padding-top:14px}
+/* PIN Panel */
+.pin-panel{display:none;margin-top:16px}
+.pin-panel.open{display:block}
 .pin-label{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:10px}
 .pin-row{display:flex;gap:10px;justify-content:center;margin-bottom:12px}
 .pin-d{background:var(--surf2);border:2px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--fh);font-size:28px;font-weight:700;height:56px;outline:none;text-align:center;width:56px;transition:border .15s}
-.pin-d:focus{border-color:var(--acc)}
+.pin-d:focus{border-color:var(--acc2)}
 .pin-err{color:var(--err);font-size:13px;text-align:center;min-height:18px;margin-bottom:8px}
+.back-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;font-family:var(--fb);margin-bottom:12px;padding:0;display:flex;align-items:center;gap:4px}
+.back-btn:hover{color:var(--text)}
 
+/* ── APP SHELL ── */
 .app-header{background:var(--surf);border-bottom:2px solid var(--acc);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
 .app-logo{font-family:var(--fh);font-size:24px;font-weight:800;letter-spacing:1px;color:var(--acc);text-transform:uppercase}
 .app-logo span{color:var(--text)}
 .user-badge{background:var(--surf2);border:1px solid var(--border);border-radius:20px;padding:4px 14px;font-size:13px;color:var(--muted)}
 .user-badge strong{color:var(--text)}
-.header-right{display:flex;align-items:center;gap:10px}
+.header-right{display:flex;align-items:center;gap:8px}
 .btn-link{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:13px;font-family:var(--fb);transition:all .15s}
 .btn-link:hover{border-color:var(--acc);color:var(--acc)}
+.btn-link.bk{border-color:#3a5a2a;color:#7acc60}
+.btn-link.bk:hover{border-color:var(--ok);color:var(--ok)}
 
 .app-nav{background:var(--surf);border-bottom:1px solid var(--border);display:flex;padding:0 20px;overflow-x:auto}
 .nav-tab{background:none;border:none;border-bottom:3px solid transparent;color:var(--muted);cursor:pointer;font-family:var(--fh);font-size:16px;font-weight:600;letter-spacing:.5px;padding:13px 18px 10px;text-transform:uppercase;transition:all .15s;white-space:nowrap}
@@ -54,8 +110,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 .section{display:none}
 .section.active{display:block}
 
+/* ── CARDS ── */
 .card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:18px}
 .card-title{font-family:var(--fh);font-size:17px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--acc);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.card.phrase-card{border-color:#2a3020;background:#181e14}
+.card.phrase-card .card-title{color:#a8e060}
+.card.strafe-card{border-color:#3a3020;background:#1e1c14}
+.card.strafe-card .card-title{color:var(--acc2)}
 
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:18px}
 @media(max-width:640px){.grid-3{grid-template-columns:1fr}}
@@ -64,22 +125,32 @@ body{background:var(--bg);color:var(--text);font-family:var(--fb);font-size:15px
 .stat-value{font-family:var(--fh);font-size:30px;font-weight:700}
 .sv-g{color:var(--ok)}.sv-r{color:var(--err)}.sv-y{color:var(--acc)}
 
+/* ── FORMS ── */
 .form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end}
 .fg{display:flex;flex-direction:column;gap:5px;flex:1;min-width:130px}
 label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
 input,select,textarea{background:var(--surf2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--fb);font-size:14px;padding:8px 11px;outline:none;transition:border .15s;width:100%}
 input:focus,select:focus,textarea:focus{border-color:var(--acc)}
 select option{background:var(--surf2)}
+.card.phrase-card input,.card.phrase-card select{background:#1e261a;border-color:#3a4830}
+.card.phrase-card input:focus,.card.phrase-card select:focus{border-color:#a8e060}
+.card.strafe-card input,.card.strafe-card select{background:#2a2618;border-color:#4a4030}
+.card.strafe-card input:focus,.card.strafe-card select:focus{border-color:var(--acc2)}
 
+/* ── BUTTONS ── */
 .btn{border:none;border-radius:7px;cursor:pointer;font-family:var(--fh);font-size:15px;font-weight:700;letter-spacing:.5px;padding:9px 20px;text-transform:uppercase;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
 .btn-p{background:var(--acc);color:#0f1117}.btn-p:hover{background:#d4eb00}
+.btn-g{background:#5ab830;color:#fff}.btn-g:hover{background:#4aa020}
+.btn-o{background:var(--acc2);color:#fff}.btn-o:hover{background:#e05a28}
 .btn-s{background:var(--surf2);color:var(--text);border:1px solid var(--border)}.btn-s:hover{border-color:var(--acc);color:var(--acc)}
 .btn-d{background:var(--err);color:#fff}.btn-d:hover{background:#d93050}
 .btn-sm{font-size:12px;padding:5px 12px}
 .btn-w{width:100%;justify-content:center}
 .ico-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px;padding:3px;border-radius:4px;transition:color .15s}
 .ico-btn:hover{color:var(--err)}
+.ico-btn.edit:hover{color:var(--acc)}
 
+/* ── TABLE ── */
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
 th{background:var(--surf2);border-bottom:2px solid var(--border);color:var(--muted);font-family:var(--fh);font-size:12px;font-weight:600;letter-spacing:.8px;padding:9px 13px;text-align:left;text-transform:uppercase;white-space:nowrap}
@@ -87,17 +158,23 @@ td{border-bottom:1px solid var(--border);font-size:14px;padding:9px 13px;vertica
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(255,255,255,.02)}
 .ap{color:var(--ok);font-weight:600}.an{color:var(--err);font-weight:600}
+/* inline edit inputs in table */
+.td-input{background:var(--surf);border:1px solid var(--acc);border-radius:5px;color:var(--text);font-family:var(--fb);font-size:13px;padding:4px 8px;width:100%}
 
+/* ── TAGS ── */
 .tag{display:inline-block;border-radius:4px;font-size:11px;padding:2px 7px;text-transform:uppercase;font-weight:600;letter-spacing:.4px}
 .tag-einnahme{background:rgba(58,255,176,.15);color:var(--ok)}
 .tag-ausgabe{background:rgba(255,77,109,.15);color:var(--err)}
 .tag-strafe{background:rgba(255,106,53,.15);color:var(--acc2)}
+.tag-phrase{background:rgba(168,224,96,.15);color:#a8e060}
 .tag-schuld{background:rgba(255,170,0,.15);color:var(--warn)}
 .tag-admin{background:rgba(232,255,58,.15);color:var(--acc)}
 .tag-spieler{background:rgba(255,255,255,.08);color:var(--muted)}
 
-.betrag-badge{background:var(--surf2);border:1px solid var(--border);border-radius:6px;color:var(--acc);font-family:var(--fh);font-size:22px;font-weight:700;padding:7px 12px;text-align:center;white-space:nowrap;min-height:38px;display:flex;align-items:center;justify-content:center}
+/* ── BETRAG BADGE ── */
+.betrag-badge{background:var(--surf2);border:1px solid var(--border);border-radius:6px;color:var(--acc2);font-family:var(--fh);font-size:22px;font-weight:700;padding:7px 12px;text-align:center;white-space:nowrap;min-height:38px;display:flex;align-items:center;justify-content:center}
 
+/* ── RANGLISTE ── */
 .rank-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
 .rank-row:last-child{border-bottom:none}
 .rank-num{font-family:var(--fh);font-size:22px;font-weight:800;width:30px;text-align:center;color:var(--muted)}
@@ -107,122 +184,141 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .rank-bar{background:var(--acc2);height:7px;border-radius:4px}
 .rank-amt{font-family:var(--fh);font-size:18px;font-weight:700;color:var(--acc2);min-width:64px;text-align:right}
 
+/* ── ALERTS ── */
 .alert{border-radius:7px;font-size:13px;padding:9px 13px;display:none;margin-bottom:12px}
 .alert.show{display:block}
 .alert-ok{background:rgba(58,255,176,.1);border:1px solid var(--ok);color:var(--ok)}
 .alert-err{background:rgba(255,77,109,.1);border:1px solid var(--err);color:var(--err)}
+.alert-warn{background:rgba(255,170,0,.1);border:1px solid var(--warn);color:var(--warn)}
 
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-.chip{display:inline-flex;align-items:center;gap:6px;background:var(--surf2);border:1px solid var(--border);border-radius:20px;font-size:13px;padding:5px 12px}
-.chip-price{color:var(--acc2);font-weight:600}
-.chip-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;transition:color .15s}
-.chip-del:hover{color:var(--err)}
+/* ── PAGINATION ── */
+.pagination{display:flex;align-items:center;justify-content:space-between;margin-top:14px;gap:10px}
+.page-info{color:var(--muted);font-size:13px}
+.page-btns{display:flex;gap:6px}
+.page-btn{background:var(--surf2);border:1px solid var(--border);border-radius:6px;color:var(--muted);cursor:pointer;font-family:var(--fh);font-size:13px;font-weight:600;padding:5px 14px;transition:all .15s}
+.page-btn:hover:not(:disabled){border-color:var(--acc);color:var(--acc)}
+.page-btn:disabled{opacity:.35;cursor:default}
+.page-btn.active{background:var(--acc);color:#0f1117;border-color:var(--acc)}
 
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:flex-end}
+.filter-bar .fg{min-width:160px}
+
+/* ── UPLOAD ── */
 .upload-area{border:2px dashed var(--border);border-radius:8px;padding:22px;text-align:center;cursor:pointer;transition:border .15s}
 .upload-area:hover{border-color:var(--acc)}
 
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:200;align-items:center;justify-content:center}
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
-.modal{background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:26px;width:90%;max-width:400px}
+.modal{background:var(--surf);border:1px solid var(--border);border-radius:14px;padding:26px;width:90%;max-width:440px;max-height:90vh;overflow-y:auto}
 .modal-title{font-family:var(--fh);font-size:20px;font-weight:800;text-transform:uppercase;color:var(--acc);margin-bottom:10px}
 .modal-actions{display:flex;gap:10px;margin-top:18px;justify-content:flex-end}
 
+/* ── MISC ── */
 .empty-state{color:var(--muted);font-size:14px;padding:28px;text-align:center}
 .text-muted{color:var(--muted);font-size:13px}
 .mt-2{margin-top:8px}.mb-2{margin-bottom:10px}
+.divider{height:1px;background:var(--border);margin:20px 0}
+.fb-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.fb-dot{width:8px;height:8px;border-radius:50%;background:var(--err)}
+.fb-dot.ok{background:var(--ok)}
 </style>
 </head>
 <body>
 
+<!-- ══ LOGIN ══════════════════════════════════════════════════ -->
 <div class="login-wrap" id="loginWrap">
   <div class="login-card">
     <div class="login-logo">🤾 Kasse</div>
-    <div class="login-sub">Wer bist du?</div>
-    <div class="login-list" id="loginList"></div>
-    <div class="divider"></div>
-    <button class="admin-btn" onclick="togglePin()">🔐 Als Admin einloggen</button>
-    <div class="pin-wrap" id="pinWrap">
-      <div class="pin-inner">
-        <div class="pin-label">Admin-PIN eingeben</div>
-        <div class="pin-row">
-          <input class="pin-d" type="password" maxlength="1" id="p0" oninput="onPI(0)" onkeydown="onPK(event,0)">
-          <input class="pin-d" type="password" maxlength="1" id="p1" oninput="onPI(1)" onkeydown="onPK(event,1)">
-          <input class="pin-d" type="password" maxlength="1" id="p2" oninput="onPI(2)" onkeydown="onPK(event,2)">
-          <input class="pin-d" type="password" maxlength="1" id="p3" oninput="onPI(3)" onkeydown="onPK(event,3)">
-        </div>
-        <div class="pin-err" id="pinErr"></div>
-        <button class="btn btn-p btn-w" onclick="checkPin()">Einloggen</button>
+    <div class="login-sub">Wie möchtest du dich einloggen?</div>
+
+    <div class="login-modes">
+      <button class="login-mode-btn" onclick="showSpielerPanel()">
+        <span class="ico">👥</span>
+        <span>Spieler-Login</span>
+      </button>
+      <button class="login-mode-btn admin" onclick="showPinPanel()">
+        <span class="ico">🔐</span>
+        <span>Admin-Login</span>
+      </button>
+    </div>
+
+    <!-- Spieler-Panel -->
+    <div class="spieler-panel" id="spielerPanel">
+      <button class="back-btn" onclick="showModeSelect()">← Zurück</button>
+      <div id="loginList"><div class="empty-state" style="padding:14px 0">Lade Spieler…</div></div>
+    </div>
+
+    <!-- PIN-Panel -->
+    <div class="pin-panel" id="pinPanel">
+      <button class="back-btn" onclick="showModeSelect()">← Zurück</button>
+      <div class="pin-label">Admin-PIN eingeben</div>
+      <div class="pin-row">
+        <input class="pin-d" type="password" maxlength="1" id="p0" oninput="onPI(0)" onkeydown="onPK(event,0)">
+        <input class="pin-d" type="password" maxlength="1" id="p1" oninput="onPI(1)" onkeydown="onPK(event,1)">
+        <input class="pin-d" type="password" maxlength="1" id="p2" oninput="onPI(2)" onkeydown="onPK(event,2)">
+        <input class="pin-d" type="password" maxlength="1" id="p3" oninput="onPI(3)" onkeydown="onPK(event,3)">
       </div>
+      <div class="pin-err" id="pinErr"></div>
+      <button class="btn btn-o btn-w" onclick="checkPin()">Einloggen</button>
     </div>
   </div>
 </div>
 
+<!-- ══ APP ════════════════════════════════════════════════════ -->
 <div id="appWrap" style="display:none">
   <header class="app-header">
     <div class="app-logo">🤾 <span>Handball</span> Kasse</div>
     <div class="header-right">
+      <div class="fb-status"><div class="fb-dot" id="fbDot"></div><span id="fbLabel">Verbinde…</span></div>
       <div class="user-badge">Eingeloggt als: <strong id="headerUser">–</strong></div>
+      <button class="btn-link bk admin-only" onclick="backupData()">💾 Backup</button>
+      <button class="btn-link bk admin-only" onclick="document.getElementById('restoreIn').click()">↩ Restore</button>
+      <input type="file" id="restoreIn" accept=".json" style="display:none" onchange="restoreData(this)">
       <button class="btn-link" onclick="logout()">Wechseln</button>
     </div>
   </header>
+
   <nav class="app-nav">
     <button class="nav-tab active"     data-tab="kasse"          onclick="switchTab('kasse')">Kasse</button>
     <button class="nav-tab"            data-tab="phrasenschwein" onclick="switchTab('phrasenschwein')">Phrasenschwein</button>
     <button class="nav-tab admin-only" data-tab="spieler"        onclick="switchTab('spieler')">Spieler</button>
     <button class="nav-tab admin-only" data-tab="katalog"        onclick="switchTab('katalog')">Strafenkatalog</button>
   </nav>
+
   <main class="app-main">
 
-    <!-- KASSE -->
+    <!-- ═══ KASSE ═══════════════════════════════════════════ -->
     <div class="section active" id="tab-kasse">
       <div class="grid-3">
         <div class="stat-box"><div class="stat-label">Kassenstand</div><div class="stat-value sv-y" id="st-saldo">€0,00</div></div>
         <div class="stat-box"><div class="stat-label">Einnahmen</div><div class="stat-value sv-g" id="st-ein">€0,00</div></div>
         <div class="stat-box"><div class="stat-label">Ausgaben</div><div class="stat-value sv-r" id="st-aus">€0,00</div></div>
       </div>
+
+      <!-- Buchung erfassen (Admin, nur Einnahme/Ausgabe) -->
       <div class="card admin-only">
         <div class="card-title">Buchung erfassen</div>
         <div class="form-row">
-          <div class="fg"><label>Typ</label>
-            <select id="buch-typ" onchange="onBT()">
+          <div class="fg" style="max-width:180px"><label>Typ</label>
+            <select id="buch-typ">
               <option value="einnahme">Einnahme</option>
               <option value="ausgabe">Ausgabe</option>
-              <option value="schuld">Schulden (Spieler)</option>
             </select>
           </div>
           <div class="fg"><label>Betrag (€)</label><input type="number" id="buch-betrag" placeholder="0.00" min="0" step="0.01"></div>
           <div class="fg"><label>Datum</label><input type="date" id="buch-datum"></div>
-        </div>
-        <div class="form-row">
-          <div class="fg" id="buch-sw" style="display:none"><label>Spieler</label><select id="buch-spieler"></select></div>
           <div class="fg" style="flex:3"><label>Beschreibung</label><input type="text" id="buch-desc" placeholder="z. B. Turniergebühr, Trikots…"></div>
         </div>
         <button class="btn btn-p" onclick="addBuchung()">Buchung speichern</button>
       </div>
-      <div class="card">
-        <div class="card-title">Buchungshistorie
-          <button class="btn btn-s btn-sm admin-only" onclick="exportKasse()">⬇ Export Excel</button>
-        </div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>Datum</th><th>Typ</th><th>Beschreibung</th><th>Spieler</th><th style="text-align:right">Betrag</th><th></th></tr></thead>
-          <tbody id="buchBody"></tbody>
-        </table></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Schulden-Übersicht</div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>Spieler</th><th style="text-align:right">Offen (€)</th></tr></thead>
-          <tbody id="schuldenBody"></tbody>
-        </table></div>
-      </div>
-    </div>
 
-    <!-- PHRASENSCHWEIN -->
-    <div class="section" id="tab-phrasenschwein">
-      <div class="card">
-        <div class="card-title">💰 Strafe melden</div>
-        <div class="alert alert-ok"  id="phraseOk"></div>
-        <div class="alert alert-err" id="phraseErr"></div>
+      <!-- Strafe melden (alle) -->
+      <div class="card strafe-card">
+        <div class="card-title">🗂 Strafe melden</div>
+        <div class="alert alert-ok"  id="strafeOk"></div>
+        <div class="alert alert-err" id="strafeErr"></div>
         <div class="form-row">
           <div class="fg"><label>Spieler</label>
             <select id="ps-spieler"><option value="">— Bitte wählen —</option></select>
@@ -234,14 +330,90 @@ tr:hover td{background:rgba(255,255,255,.02)}
             <div class="betrag-badge" id="ps-betrag">–</div>
           </div>
         </div>
-        <button class="btn btn-p" onclick="addStrafe()">Strafe buchen</button>
+        <button class="btn btn-o" onclick="addStrafe()">Strafe buchen</button>
       </div>
+
+      <!-- Buchungshistorie -->
+      <div class="card">
+        <div class="card-title">Buchungshistorie
+          <button class="btn btn-s btn-sm admin-only" onclick="exportKasse()">⬇ Export Excel</button>
+        </div>
+        <!-- Filter -->
+        <div class="filter-bar">
+          <div class="fg" style="max-width:220px"><label>Filter: Spieler</label>
+            <select id="buch-filter-spieler" onchange="buchPage=0;renderBuchungen()">
+              <option value="">Alle</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Datum</th><th>Typ</th><th>Beschreibung</th><th>Spieler</th><th style="text-align:right">Betrag</th><th></th></tr></thead>
+          <tbody id="buchBody"></tbody>
+        </table></div>
+        <div class="pagination" id="buchPag"></div>
+      </div>
+
+      <!-- Schulden -->
+      <div class="card">
+        <div class="card-title">Schulden-Übersicht</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Spieler</th><th style="text-align:right">Offen (€)</th></tr></thead>
+          <tbody id="schuldenBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- ═══ PHRASENSCHWEIN ═══════════════════════════════════ -->
+    <div class="section" id="tab-phrasenschwein">
+
+      <!-- Phrase erfassen -->
+      <div class="card phrase-card">
+        <div class="card-title">🐷 Phrase erfassen</div>
+        <div class="alert alert-ok"  id="phraseOk"></div>
+        <div class="alert alert-err" id="phraseErr"></div>
+        <div class="form-row">
+          <div class="fg"><label>Spieler</label>
+            <select id="ph-spieler"><option value="">— Bitte wählen —</option></select>
+          </div>
+          <div class="fg" style="flex:3"><label>Phrase (Freitext)</label>
+            <input type="text" id="ph-text" placeholder="Was wurde gesagt?">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+          <div class="betrag-badge" style="color:#a8e060;font-size:16px;padding:6px 16px">€ 0,50 wird automatisch gebucht</div>
+        </div>
+        <button class="btn btn-g" onclick="addPhrase()">Phrase speichern + Strafe buchen</button>
+      </div>
+
+      <!-- Rangliste -->
       <div class="card">
         <div class="card-title">🏆 Strafen-Rangliste</div>
         <div id="ranglisteWrap"><div class="empty-state">Noch keine Strafen verbucht</div></div>
       </div>
+
+      <!-- Phrasen-Historie mit Filter + Suche -->
       <div class="card">
-        <div class="card-title">Strafenhistorie</div>
+        <div class="card-title">Phrasen-Historie</div>
+        <div class="filter-bar">
+          <div class="fg" style="max-width:220px"><label>Filter: Spieler</label>
+            <select id="ph-filter-spieler" onchange="phPage=0;renderPhraseHist()">
+              <option value="">Alle</option>
+            </select>
+          </div>
+          <div class="fg" style="max-width:280px"><label>Suche</label>
+            <input type="text" id="ph-search" placeholder="Phrase suchen…" oninput="phPage=0;renderPhraseHist()">
+          </div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Datum</th><th>Spieler</th><th>Phrase</th><th style="text-align:right">Betrag</th><th></th></tr></thead>
+          <tbody id="phrasenHistBody"></tbody>
+        </table></div>
+        <div class="pagination" id="phPag"></div>
+      </div>
+
+      <!-- Strafen-Historie -->
+      <div class="card">
+        <div class="card-title">Strafen-Historie <span style="font-size:12px;font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0">(aus Katalog)</span></div>
         <div class="table-wrap"><table>
           <thead><tr><th>Datum</th><th>Spieler</th><th>Strafe</th><th style="text-align:right">Betrag</th><th></th></tr></thead>
           <tbody id="strafenBody"></tbody>
@@ -249,7 +421,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
     </div>
 
-    <!-- SPIELER -->
+    <!-- ═══ SPIELER (Admin) ══════════════════════════════════ -->
     <div class="section" id="tab-spieler">
       <div class="card">
         <div class="card-title">Spieler hinzufügen</div>
@@ -270,16 +442,29 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
     </div>
 
-    <!-- STRAFENKATALOG -->
+    <!-- ═══ STRAFENKATALOG (Admin) ═══════════════════════════ -->
     <div class="section" id="tab-katalog">
+
+      <!-- Neue Strafe anlegen -->
       <div class="card">
-        <div class="card-title">Strafe manuell anlegen</div>
+        <div class="card-title">Neue Strafe anlegen</div>
         <div class="form-row">
           <div class="fg" style="flex:3"><label>Bezeichnung</label><input type="text" id="kat-name" placeholder="z. B. Zu spät zum Training"></div>
           <div class="fg" style="max-width:160px"><label>Betrag (€)</label><input type="number" id="kat-betrag" value="0.50" step="0.01" min="0"></div>
         </div>
-        <button class="btn btn-p" onclick="addPhrase()">Speichern</button>
+        <button class="btn btn-p" onclick="addKatPhrase()">Speichern</button>
       </div>
+
+      <!-- Katalog Tabelle (editierbar) -->
+      <div class="card">
+        <div class="card-title">Gespeicherter Katalog</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th style="width:60%">Bezeichnung</th><th style="width:20%">Betrag (€)</th><th style="width:20%"></th></tr></thead>
+          <tbody id="katalogBody"></tbody>
+        </table></div>
+      </div>
+
+      <!-- Excel-Import ganz unten -->
       <div class="card">
         <div class="card-title">Import aus Excel</div>
         <p class="text-muted mb-2">Spalte A = Bezeichnung &nbsp;|&nbsp; Spalte B = Betrag (€). Erste Zeile = Header (wird übersprungen).</p>
@@ -291,276 +476,594 @@ tr:hover td{background:rgba(255,255,255,.02)}
         </div>
         <div class="alert alert-ok mt-2" id="importAlert"></div>
       </div>
-      <div class="card">
-        <div class="card-title">Gespeicherter Katalog</div>
-        <div id="phrasenChips"><div class="empty-state">Noch keine Strafen angelegt</div></div>
-      </div>
     </div>
 
   </main>
 </div>
 
+<!-- DELETE MODAL -->
 <div class="modal-overlay" id="delModal">
   <div class="modal">
     <div class="modal-title">Eintrag löschen?</div>
     <p class="text-muted">Dieser Schritt kann nicht rückgängig gemacht werden.</p>
     <div class="modal-actions">
-      <button class="btn btn-s" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-s" onclick="closeModal('delModal')">Abbrechen</button>
       <button class="btn btn-d" id="delConfirm">Löschen</button>
     </div>
   </div>
 </div>
 
+<!-- RESTORE MODAL -->
+<div class="modal-overlay" id="restoreModal">
+  <div class="modal">
+    <div class="modal-title">Backup wiederherstellen?</div>
+    <p class="text-muted" style="margin-bottom:10px">Alle aktuellen Daten werden überschrieben.</p>
+    <div class="alert alert-warn show" id="restoreInfo"></div>
+    <div class="modal-actions">
+      <button class="btn btn-s" onclick="closeModal('restoreModal')">Abbrechen</button>
+      <button class="btn btn-d" id="restoreConfirm">Wiederherstellen</button>
+    </div>
+  </div>
+</div>
+
 <script>
-const ADMIN_PIN = '1234'; // ← PIN hier ändern
+// ════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════
+const ADMIN_PIN    = '1234';   // ← PIN hier ändern
+const PHRASE_PREIS = 0.50;     // ← Festbetrag Phrasenschwein
+const PAGE_SIZE    = 15;       // Einträge pro Seite
 
-const K = {sp:'hb:spieler',bu:'hb:buchungen',ph:'hb:phrasen'};
-async function sGet(k){try{const r=await window.storage.get(k,true);return r?JSON.parse(r.value):[]}catch{return[]}}
-async function sSet(k,v){try{await window.storage.set(k,JSON.stringify(v),true)}catch{}}
+// ════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════
+let me = null;
+let spieler   = [];
+let buchungen = [];
+let katalog   = [];
+let pendingDel = null;
+let pendingRestore = null;
+let buchPage = 0;
+let phPage   = 0;
+let editingKatId = null;
 
-let me=null,spieler=[],buchungen=[],phrasen=[],pendingDel=null;
+// ════════════════════════════════════════════════════════
+// FIREBASE INTEGRATION
+// ════════════════════════════════════════════════════════
+let fbReady = false;
 
-async function init(){
-  spieler=await sGet(K.sp);buchungen=await sGet(K.bu);phrasen=await sGet(K.ph);
-  document.getElementById('buch-datum').value=today();
+function fbSet(path, data) {
+  if (!fbReady) { console.warn('Firebase nicht bereit'); return Promise.resolve(); }
+  return window.fbSet(path, data);
+}
+
+window.addEventListener('firebaseReady', () => {
+  fbReady = true;
+  document.getElementById('fbDot').classList.add('ok');
+  document.getElementById('fbLabel').textContent = 'Verbunden';
+
+  // Echtzeit-Listener: Daten immer aktuell halten
+  window.fbListen('spieler',   val => { spieler   = val ? Object.values(val) : []; onDataUpdate(); });
+  window.fbListen('buchungen', val => { buchungen = val ? Object.values(val) : []; onDataUpdate(); });
+  window.fbListen('katalog',   val => { katalog   = val ? Object.values(val) : []; onDataUpdate(); });
+});
+
+function onDataUpdate() {
+  // Wird nach jedem Firebase-Update aufgerufen
+  if (me) renderAll();
+  renderLogin(); // Spielerliste im Login aktuell halten
+}
+
+// Fallback: Wenn Firebase nach 5s nicht bereit ist, zeige Warnung
+setTimeout(() => {
+  if (!fbReady) {
+    document.getElementById('fbLabel').textContent = 'Nicht verbunden';
+    console.warn('Firebase nicht verbunden – Konfiguration prüfen!');
+  }
+}, 5000);
+
+// ════════════════════════════════════════════════════════
+// SPEICHERN (Firebase)
+// ════════════════════════════════════════════════════════
+function saveSpieler()   { return fbSet('spieler',   arrToObj(spieler)); }
+function saveBuchungen() { return fbSet('buchungen', arrToObj(buchungen)); }
+function saveKatalog()   { return fbSet('katalog',   arrToObj(katalog)); }
+
+// Firebase speichert Arrays besser als Objekte mit ID als Key
+function arrToObj(arr) {
+  const o = {};
+  arr.forEach(item => { o[item.id] = item; });
+  return o;
+}
+
+// ════════════════════════════════════════════════════════
+// BACKUP / RESTORE
+// ════════════════════════════════════════════════════════
+function backupData() {
+  const blob = new Blob([JSON.stringify({version:3,timestamp:new Date().toISOString(),spieler,buchungen,katalog},null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'handball-backup-'+today()+'.json';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+function restoreData(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (!d.spieler || !d.buchungen) throw new Error();
+      pendingRestore = d;
+      document.getElementById('restoreInfo').textContent =
+        `Backup vom ${d.timestamp ? new Date(d.timestamp).toLocaleString('de-DE') : 'unbekannt'} – ` +
+        `${d.spieler.length} Spieler, ${d.buchungen.length} Buchungen, ${(d.katalog||[]).length} Katalog-Einträge.`;
+      openModal('restoreModal');
+    } catch { alert('Ungültige Backup-Datei.'); }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('restoreConfirm').onclick = async () => {
+  if (!pendingRestore) return;
+  spieler   = pendingRestore.spieler;
+  buchungen = pendingRestore.buchungen;
+  katalog   = pendingRestore.katalog || [];
+  await saveSpieler(); await saveBuchungen(); await saveKatalog();
+  closeModal('restoreModal'); renderAll();
+};
+
+// ════════════════════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════════════════════
+function showModeSelect() {
+  document.getElementById('spielerPanel').classList.remove('open');
+  document.getElementById('pinPanel').classList.remove('open');
+}
+function showSpielerPanel() {
+  document.getElementById('spielerPanel').classList.add('open');
+  document.getElementById('pinPanel').classList.remove('open');
   renderLogin();
 }
-function today(){return new Date().toISOString().split('T')[0]}
-
-// LOGIN
-function renderLogin(){
-  const el=document.getElementById('loginList');
-  el.innerHTML=spieler.length===0
-    ?'<div class="empty-state" style="padding:14px 0">Noch keine Spieler – Admin muss zuerst anlegen.</div>'
-    :spieler.map(s=>`<button class="l-btn" onclick="loginAs('${s.id}')"><span>${s.name}</span><span class="tag tag-${s.rolle}">${s.rolle==='admin'?'Admin':'Spieler'}</span></button>`).join('');
+function showPinPanel() {
+  document.getElementById('pinPanel').classList.add('open');
+  document.getElementById('spielerPanel').classList.remove('open');
+  clearPin(); document.getElementById('p0').focus();
 }
 
-function togglePin(){
-  const pw=document.getElementById('pinWrap');
-  if(pw.classList.toggle('open')){clearPin();document.getElementById('p0').focus()}
+function renderLogin() {
+  const el = document.getElementById('loginList');
+  if (spieler.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="padding:10px 0">Noch keine Spieler – Admin muss zuerst anlegen.</div>';
+    return;
+  }
+  el.innerHTML = spieler.map(s =>
+    `<button class="l-btn" onclick="loginAs('${s.id}')">
+      <span>${s.name}</span>
+      <span class="tag tag-${s.rolle}">${s.rolle==='admin'?'Admin':'Spieler'}</span>
+    </button>`).join('');
 }
-function onPI(i){
+
+function onPI(i) {
+  document.getElementById('pinErr').textContent = '';
+  const v = document.getElementById('p'+i).value;
+  if (v && i < 3) document.getElementById('p'+(i+1)).focus();
+  if (i === 3 && v) checkPin();
+}
+function onPK(e, i) {
+  if (e.key==='Backspace' && !document.getElementById('p'+i).value && i>0) document.getElementById('p'+(i-1)).focus();
+  if (e.key==='Enter') checkPin();
+}
+function clearPin() {
+  for (let i=0;i<4;i++) document.getElementById('p'+i).value='';
   document.getElementById('pinErr').textContent='';
-  const v=document.getElementById('p'+i).value;
-  if(v&&i<3)document.getElementById('p'+(i+1)).focus();
-  if(i===3&&v)checkPin();
 }
-function onPK(e,i){
-  if(e.key==='Backspace'&&!document.getElementById('p'+i).value&&i>0)document.getElementById('p'+(i-1)).focus();
-  if(e.key==='Enter')checkPin();
+function checkPin() {
+  const entered = [0,1,2,3].map(i=>document.getElementById('p'+i).value).join('');
+  if (entered.length < 4) return;
+  if (entered === ADMIN_PIN) { me = {id:'__admin__',name:'Admin',rolle:'admin'}; showApp(); }
+  else { document.getElementById('pinErr').textContent='Falscher PIN – bitte erneut versuchen.'; clearPin(); document.getElementById('p0').focus(); }
 }
-function clearPin(){for(let i=0;i<4;i++)document.getElementById('p'+i).value='';document.getElementById('pinErr').textContent=''}
-function checkPin(){
-  const entered=[0,1,2,3].map(i=>document.getElementById('p'+i).value).join('');
-  if(entered.length<4)return;
-  if(entered===ADMIN_PIN){me={id:'__admin__',name:'Admin',rolle:'admin'};showApp()}
-  else{document.getElementById('pinErr').textContent='Falscher PIN – bitte erneut versuchen.';clearPin();document.getElementById('p0').focus()}
+function loginAs(id) { me = spieler.find(s=>s.id===id); if (me) showApp(); }
+
+function showApp() {
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('appWrap').style.display = 'block';
+  document.getElementById('headerUser').textContent = me.name;
+  const isAdmin = me.rolle === 'admin';
+  document.querySelectorAll('.admin-only').forEach(el => { el.style.display = isAdmin ? '' : 'none'; });
+  switchTab('kasse');
+  renderAll();
 }
-function loginAs(id){me=spieler.find(s=>s.id===id);if(me)showApp()}
-function showApp(){
-  document.getElementById('loginWrap').style.display='none';
-  document.getElementById('appWrap').style.display='block';
-  document.getElementById('headerUser').textContent=me.name;
-  const isAdmin=me.rolle==='admin';
-  document.querySelectorAll('.admin-only').forEach(el=>{el.style.display=isAdmin?'':' none'});
-  switchTab('kasse');renderAll();
-}
-function logout(){
-  me=null;
-  document.getElementById('appWrap').style.display='none';
-  document.getElementById('loginWrap').style.display='flex';
-  document.getElementById('pinWrap').classList.remove('open');
-  clearPin();renderLogin();
+function logout() {
+  me = null;
+  document.getElementById('appWrap').style.display = 'none';
+  document.getElementById('loginWrap').style.display = 'flex';
+  showModeSelect(); clearPin();
+  renderLogin();
 }
 
+// ════════════════════════════════════════════════════════
 // TABS
-function switchTab(tab){
+// ════════════════════════════════════════════════════════
+function switchTab(tab) {
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+tab).classList.add('active');
   document.querySelector('[data-tab="'+tab+'"]').classList.add('active');
 }
 
+// ════════════════════════════════════════════════════════
 // SPIELER
-function addSpieler(){
-  const name=document.getElementById('sp-name').value.trim();
-  const rolle=document.getElementById('sp-rolle').value;
-  if(!name)return;
-  spieler.push({id:Date.now().toString(),name,rolle});
-  sSet(K.sp,spieler);
-  document.getElementById('sp-name').value='';
-  renderAll();
+// ════════════════════════════════════════════════════════
+function addSpieler() {
+  const name = document.getElementById('sp-name').value.trim();
+  const rolle = document.getElementById('sp-rolle').value;
+  if (!name) return;
+  spieler.push({id: uid(), name, rolle});
+  saveSpieler();
+  document.getElementById('sp-name').value = '';
 }
-function delSpieler(id){confirmDel(()=>{spieler=spieler.filter(s=>s.id!==id);sSet(K.sp,spieler);renderAll()})}
-function renderSpieler(){
-  document.getElementById('spielerBody').innerHTML=spieler.length===0
-    ?'<tr><td colspan="3" class="empty-state">Noch keine Spieler</td></tr>'
-    :spieler.map(s=>`<tr><td>${s.name}</td><td><span class="tag tag-${s.rolle}">${s.rolle==='admin'?'Admin':'Spieler'}</span></td><td><button class="ico-btn" onclick="delSpieler('${s.id}')">🗑</button></td></tr>`).join('');
-  const opts=spieler.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-  document.getElementById('buch-spieler').innerHTML=opts||'<option value="">Keine Spieler</option>';
-  document.getElementById('ps-spieler').innerHTML='<option value="">— Bitte wählen —</option>'+opts;
+function delSpieler(id) {
+  confirmDel(() => { spieler = spieler.filter(s=>s.id!==id); saveSpieler(); });
+}
+function renderSpieler() {
+  document.getElementById('spielerBody').innerHTML = spieler.length === 0
+    ? '<tr><td colspan="3" class="empty-state">Noch keine Spieler</td></tr>'
+    : spieler.map(s=>`
+        <tr>
+          <td>${s.name}</td>
+          <td><span class="tag tag-${s.rolle}">${s.rolle==='admin'?'Admin':'Spieler'}</span></td>
+          <td><button class="ico-btn" onclick="delSpieler('${s.id}')">🗑</button></td>
+        </tr>`).join('');
+
+  // Dropdowns befüllen
+  const opts = spieler.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const allOpt = '<option value="">Alle</option>';
+  document.getElementById('ps-spieler').innerHTML   = '<option value="">— Bitte wählen —</option>' + opts;
+  document.getElementById('ph-spieler').innerHTML   = '<option value="">— Bitte wählen —</option>' + opts;
+  document.getElementById('buch-filter-spieler').innerHTML = allOpt + opts;
+  document.getElementById('ph-filter-spieler').innerHTML   = allOpt + opts;
 }
 
-// KATALOG
-function addPhrase(){
-  const name=document.getElementById('kat-name').value.trim();
-  const betrag=parseFloat(document.getElementById('kat-betrag').value)||0.50;
-  if(!name)return;
-  phrasen.push({id:Date.now().toString(),name,betrag});
-  sSet(K.ph,phrasen);
-  document.getElementById('kat-name').value='';
+// ════════════════════════════════════════════════════════
+// STRAFENKATALOG
+// ════════════════════════════════════════════════════════
+function addKatPhrase() {
+  const name   = document.getElementById('kat-name').value.trim();
+  const betrag = parseFloat(document.getElementById('kat-betrag').value) || 0.50;
+  if (!name) return;
+  katalog.push({id: uid(), name, betrag});
+  saveKatalog();
+  document.getElementById('kat-name').value = '';
+}
+
+function editKat(id) {
+  editingKatId = id;
   renderKatalog();
 }
-function delPhrase(id){confirmDel(()=>{phrasen=phrasen.filter(p=>p.id!==id);sSet(K.ph,phrasen);renderKatalog()})}
-function importXlsx(input){
-  const file=input.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const wb=XLSX.read(e.target.result,{type:'binary'});
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
-    let count=0;
-    rows.slice(1).forEach(row=>{
-      const name=(row[0]||'').toString().trim();
-      const betrag=parseFloat(row[1])||0.50;
-      if(name){phrasen.push({id:Date.now().toString()+Math.random(),name,betrag});count++}
+function saveKatEdit(id) {
+  const nameEl   = document.getElementById('kat-edit-name-'+id);
+  const betragEl = document.getElementById('kat-edit-betrag-'+id);
+  const name   = nameEl ? nameEl.value.trim() : '';
+  const betrag = betragEl ? parseFloat(betragEl.value) || 0.50 : 0.50;
+  if (!name) return;
+  katalog = katalog.map(p => p.id===id ? {...p, name, betrag} : p);
+  saveKatalog();
+  editingKatId = null;
+}
+function cancelKatEdit() { editingKatId = null; renderKatalog(); }
+
+function delKatPhrase(id) {
+  confirmDel(() => { katalog = katalog.filter(p=>p.id!==id); saveKatalog(); });
+}
+
+function importXlsx(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, {type:'binary'});
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
+    let count = 0;
+    rows.slice(1).forEach(row => {
+      const name = (row[0]||'').toString().trim();
+      const betrag = parseFloat(row[1]) || 0.50;
+      if (name) { katalog.push({id: uid(), name, betrag}); count++; }
     });
-    sSet(K.ph,phrasen);renderKatalog();
-    flash('importAlert','✓ '+count+' Strafen importiert');
-    input.value='';
+    saveKatalog();
+    flash('importAlert', '✓ '+count+' Strafen importiert');
+    input.value = '';
   };
   reader.readAsBinaryString(file);
 }
-function renderKatalog(){
-  const wrap=document.getElementById('phrasenChips');
-  wrap.innerHTML=phrasen.length===0
-    ?'<div class="empty-state">Noch keine Strafen angelegt</div>'
-    :'<div class="chips">'+phrasen.map(p=>`<span class="chip">${p.name} <span class="chip-price">€${fmtN(p.betrag)}</span><button class="chip-del" onclick="delPhrase('${p.id}')">×</button></span>`).join('')+'</div>';
-  // Katalog-Dropdown befüllen
-  document.getElementById('ps-katalog').innerHTML='<option value="">— Bitte wählen —</option>'+
-    phrasen.map(p=>`<option value="${p.id}" data-betrag="${p.betrag}">${p.name} (€${fmtN(p.betrag)})</option>`).join('');
-  document.getElementById('ps-betrag').textContent='–';
-}
-function onKatChange(){
-  const sel=document.getElementById('ps-katalog');
-  const opt=sel.options[sel.selectedIndex];
-  const b=opt&&opt.dataset.betrag?parseFloat(opt.dataset.betrag):null;
-  document.getElementById('ps-betrag').textContent=b!==null?'€'+fmtN(b):'–';
-}
 
-// KASSE
-function onBT(){document.getElementById('buch-sw').style.display=document.getElementById('buch-typ').value==='schuld'?'flex':'none'}
-function addBuchung(){
-  const typ=document.getElementById('buch-typ').value;
-  const betrag=parseFloat(document.getElementById('buch-betrag').value);
-  const datum=document.getElementById('buch-datum').value;
-  const beschreibung=document.getElementById('buch-desc').value.trim();
-  if(!betrag||betrag<=0||!datum||!beschreibung)return;
-  let spielerId='',spielerName='';
-  if(typ==='schuld'){
-    spielerId=document.getElementById('buch-spieler').value;
-    const s=spieler.find(x=>x.id===spielerId);
-    spielerName=s?s.name:'';
+function renderKatalog() {
+  // Tabelle
+  const tbody = document.getElementById('katalogBody');
+  if (katalog.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Noch keine Strafen angelegt</td></tr>';
+  } else {
+    tbody.innerHTML = katalog.map(p => {
+      if (editingKatId === p.id) {
+        return `<tr>
+          <td><input class="td-input" id="kat-edit-name-${p.id}" value="${p.name}"></td>
+          <td><input class="td-input" id="kat-edit-betrag-${p.id}" type="number" step="0.01" value="${p.betrag}" style="max-width:90px"></td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-p btn-sm" onclick="saveKatEdit('${p.id}')">✓ Speichern</button>
+            <button class="btn btn-s btn-sm" onclick="cancelKatEdit()" style="margin-left:4px">Abbrechen</button>
+          </td>
+        </tr>`;
+      }
+      return `<tr>
+        <td>${p.name}</td>
+        <td>€${fmtN(p.betrag)}</td>
+        <td style="white-space:nowrap">
+          <button class="ico-btn edit" onclick="editKat('${p.id}')" title="Bearbeiten">✏️</button>
+          <button class="ico-btn" onclick="delKatPhrase('${p.id}')" title="Löschen">🗑</button>
+        </td>
+      </tr>`;
+    }).join('');
   }
-  buchungen.unshift({id:Date.now().toString(),typ,betrag,datum,beschreibung,spielerId,spielerName});
-  sSet(K.bu,buchungen);
-  document.getElementById('buch-betrag').value='';
-  document.getElementById('buch-desc').value='';
-  renderKasse();
-}
-function delBuchung(id){confirmDel(()=>{buchungen=buchungen.filter(b=>b.id!==id);sSet(K.bu,buchungen);renderKasse()})}
-function renderKasse(){
-  const isAdmin=me&&me.rolle==='admin';
-  let ein=0,aus=0;
-  buchungen.forEach(b=>{
-    if(b.typ==='einnahme'||b.typ==='strafe')ein+=b.betrag;
-    if(b.typ==='ausgabe')aus+=b.betrag;
-  });
-  document.getElementById('st-saldo').textContent=fmt(ein-aus);
-  document.getElementById('st-ein').textContent=fmt(ein);
-  document.getElementById('st-aus').textContent=fmt(aus);
-  const vis=buchungen.filter(b=>isAdmin?true:(b.typ!=='schuld'||b.spielerId===me.id));
-  document.getElementById('buchBody').innerHTML=vis.length===0
-    ?'<tr><td colspan="6" class="empty-state">Noch keine Buchungen</td></tr>'
-    :vis.map(b=>`<tr><td>${b.datum}</td><td><span class="tag tag-${b.typ}">${typLbl(b.typ)}</span></td><td>${b.beschreibung}</td><td>${b.spielerName||'–'}</td><td style="text-align:right" class="${b.typ==='ausgabe'?'an':'ap'}">${b.typ==='ausgabe'?'−':'+'}${fmt(b.betrag)}</td><td>${isAdmin?`<button class="ico-btn" onclick="delBuchung('${b.id}')">🗑</button>`:''}</td></tr>`).join('');
-  const sm={};
-  buchungen.filter(b=>b.typ==='schuld').forEach(b=>{sm[b.spielerName]=(sm[b.spielerName]||0)+b.betrag});
-  const entries=Object.entries(sm).filter(([,v])=>v>0);
-  document.getElementById('schuldenBody').innerHTML=entries.length===0
-    ?'<tr><td colspan="2" class="empty-state">Keine offenen Schulden</td></tr>'
-    :entries.map(([n,v])=>`<tr><td>${n}</td><td style="text-align:right" class="an">−${fmt(v)}</td></tr>`).join('');
+
+  // Dropdown im Kasse-Tab
+  document.getElementById('ps-katalog').innerHTML = '<option value="">— Bitte wählen —</option>' +
+    katalog.map(p=>`<option value="${p.id}" data-betrag="${p.betrag}">${p.name} (€${fmtN(p.betrag)})</option>`).join('');
+  document.getElementById('ps-betrag').textContent = '–';
 }
 
-// STRAFEN
-function addStrafe(){
-  const spielerId=document.getElementById('ps-spieler').value;
-  const phraseId=document.getElementById('ps-katalog').value;
-  if(!spielerId){flash('phraseErr','⚠ Bitte einen Spieler wählen.');return}
-  if(!phraseId){flash('phraseErr','⚠ Bitte eine Strafe aus dem Katalog wählen.');return}
-  const sp=spieler.find(s=>s.id===spielerId);
-  const ph=phrasen.find(p=>p.id===phraseId);
-  if(!sp||!ph)return;
-  buchungen.unshift({id:Date.now().toString(),typ:'strafe',betrag:ph.betrag,datum:today(),beschreibung:ph.name,spielerId:sp.id,spielerName:sp.name,gemeldet_von:me.name});
-  sSet(K.bu,buchungen);
-  document.getElementById('ps-spieler').value='';
-  document.getElementById('ps-katalog').value='';
-  document.getElementById('ps-betrag').textContent='–';
-  flash('phraseOk','✓ Strafe "'+ph.name+'" (€'+fmtN(ph.betrag)+') für '+sp.name+' gebucht!');
-  renderKasse();renderRangliste();renderStrafen();
+function onKatChange() {
+  const sel = document.getElementById('ps-katalog');
+  const opt = sel.options[sel.selectedIndex];
+  const b = opt && opt.dataset.betrag ? parseFloat(opt.dataset.betrag) : null;
+  document.getElementById('ps-betrag').textContent = b !== null ? '€'+fmtN(b) : '–';
 }
-function delStrafe(id){confirmDel(()=>{buchungen=buchungen.filter(b=>b.id!==id);sSet(K.bu,buchungen);renderKasse();renderRangliste();renderStrafen()})}
-function renderRangliste(){
-  const map={};
-  buchungen.filter(b=>b.typ==='strafe').forEach(b=>{
-    if(!map[b.spielerName])map[b.spielerName]={total:0,count:0};
-    map[b.spielerName].total+=b.betrag;map[b.spielerName].count++;
+
+// ════════════════════════════════════════════════════════
+// KASSE – BUCHUNGEN (nur Einnahme/Ausgabe)
+// ════════════════════════════════════════════════════════
+function addBuchung() {
+  const typ = document.getElementById('buch-typ').value;
+  const betrag = parseFloat(document.getElementById('buch-betrag').value);
+  const datum = document.getElementById('buch-datum').value;
+  const beschreibung = document.getElementById('buch-desc').value.trim();
+  if (!betrag || betrag<=0 || !datum || !beschreibung) return;
+  buchungen.unshift({id:uid(), typ, betrag, datum, beschreibung, spielerId:'', spielerName:''});
+  saveBuchungen();
+  document.getElementById('buch-betrag').value = '';
+  document.getElementById('buch-desc').value = '';
+}
+function delBuchung(id) {
+  confirmDel(() => { buchungen = buchungen.filter(b=>b.id!==id); saveBuchungen(); });
+}
+
+// ════════════════════════════════════════════════════════
+// STRAFE aus Katalog
+// ════════════════════════════════════════════════════════
+function addStrafe() {
+  const spielerId = document.getElementById('ps-spieler').value;
+  const phraseId  = document.getElementById('ps-katalog').value;
+  if (!spielerId) { flash('strafeErr','⚠ Bitte einen Spieler wählen.'); return; }
+  if (!phraseId)  { flash('strafeErr','⚠ Bitte eine Strafe aus dem Katalog wählen.'); return; }
+  const sp = spieler.find(s=>s.id===spielerId);
+  const ph = katalog.find(p=>p.id===phraseId);
+  if (!sp||!ph) return;
+  buchungen.unshift({id:uid(),typ:'strafe',betrag:ph.betrag,datum:today(),beschreibung:ph.name,spielerId:sp.id,spielerName:sp.name,gemeldet_von:me.name});
+  saveBuchungen();
+  document.getElementById('ps-spieler').value = '';
+  document.getElementById('ps-katalog').value = '';
+  document.getElementById('ps-betrag').textContent = '–';
+  flash('strafeOk','✓ Strafe "'+ph.name+'" (€'+fmtN(ph.betrag)+') für '+sp.name+' gebucht!');
+}
+
+// ════════════════════════════════════════════════════════
+// PHRASE (Freitext → 0,50 € automatisch)
+// ════════════════════════════════════════════════════════
+function addPhrase() {
+  const spielerId = document.getElementById('ph-spieler').value;
+  const text = document.getElementById('ph-text').value.trim();
+  if (!spielerId) { flash('phraseErr','⚠ Bitte einen Spieler wählen.'); return; }
+  if (!text)       { flash('phraseErr','⚠ Bitte die Phrase eingeben.'); return; }
+  const sp = spieler.find(s=>s.id===spielerId);
+  if (!sp) return;
+  buchungen.unshift({id:uid(),typ:'phrase',betrag:PHRASE_PREIS,datum:today(),beschreibung:text,spielerId:sp.id,spielerName:sp.name,gemeldet_von:me.name});
+  saveBuchungen();
+  document.getElementById('ph-spieler').value = '';
+  document.getElementById('ph-text').value = '';
+  flash('phraseOk','✓ Phrase gespeichert – €'+fmtN(PHRASE_PREIS)+' für '+sp.name+' gebucht!');
+}
+function delPhrase(id) {
+  confirmDel(() => { buchungen = buchungen.filter(b=>b.id!==id); saveBuchungen(); });
+}
+function delStrafe(id) {
+  confirmDel(() => { buchungen = buchungen.filter(b=>b.id!==id); saveBuchungen(); });
+}
+
+// ════════════════════════════════════════════════════════
+// RENDER KASSE
+// ════════════════════════════════════════════════════════
+function renderKasse() {
+  const isAdmin = me && me.rolle==='admin';
+  let ein=0, aus=0;
+  buchungen.forEach(b => {
+    if (b.typ==='einnahme'||b.typ==='strafe'||b.typ==='phrase') ein += b.betrag;
+    if (b.typ==='ausgabe') aus += b.betrag;
   });
-  const sorted=Object.entries(map).sort((a,b)=>b[1].total-a[1].total);
-  const wrap=document.getElementById('ranglisteWrap');
-  if(!sorted.length){wrap.innerHTML='<div class="empty-state">Noch keine Strafen verbucht</div>';return}
-  const max=sorted[0][1].total;
-  const mc=['rn-gold','rn-silver','rn-bronze'];
-  wrap.innerHTML=sorted.map(([name,d],i)=>`
+  document.getElementById('st-saldo').textContent = fmt(ein-aus);
+  document.getElementById('st-ein').textContent   = fmt(ein);
+  document.getElementById('st-aus').textContent   = fmt(aus);
+
+  renderBuchungen();
+
+  // Schulden (nur Spieler mit typ='strafe' oder 'phrase' die noch offen sind – hier vereinfacht alle Summen)
+  const sm = {};
+  buchungen.filter(b=>b.typ==='schuld').forEach(b=>{ sm[b.spielerName]=(sm[b.spielerName]||0)+b.betrag; });
+  const entries = Object.entries(sm).filter(([,v])=>v>0);
+  document.getElementById('schuldenBody').innerHTML = entries.length===0
+    ? '<tr><td colspan="2" class="empty-state">Keine offenen Schulden</td></tr>'
+    : entries.map(([n,v])=>`<tr><td>${n}</td><td style="text-align:right" class="an">−${fmt(v)}</td></tr>`).join('');
+}
+
+function renderBuchungen() {
+  const isAdmin = me && me.rolle==='admin';
+  const filterSpieler = document.getElementById('buch-filter-spieler').value;
+
+  let list = buchungen.filter(b => {
+    if (filterSpieler && b.spielerId !== filterSpieler) return false;
+    return true;
+  });
+
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (buchPage >= totalPages) buchPage = totalPages - 1;
+  const paged = list.slice(buchPage * PAGE_SIZE, (buchPage+1) * PAGE_SIZE);
+
+  document.getElementById('buchBody').innerHTML = paged.length===0
+    ? '<tr><td colspan="6" class="empty-state">Keine Buchungen gefunden</td></tr>'
+    : paged.map(b=>`<tr>
+        <td>${b.datum}</td>
+        <td><span class="tag tag-${b.typ}">${typLbl(b.typ)}</span></td>
+        <td>${b.beschreibung}</td>
+        <td>${b.spielerName||'–'}</td>
+        <td style="text-align:right" class="${b.typ==='ausgabe'?'an':'ap'}">${b.typ==='ausgabe'?'−':'+'}${fmt(b.betrag)}</td>
+        <td>${isAdmin?`<button class="ico-btn" onclick="delBuchung('${b.id}')">🗑</button>`:''}</td>
+      </tr>`).join('');
+
+  renderPagination('buchPag', buchPage, totalPages, p=>{ buchPage=p; renderBuchungen(); });
+}
+
+// ════════════════════════════════════════════════════════
+// RENDER PHRASENSCHWEIN
+// ════════════════════════════════════════════════════════
+function renderRangliste() {
+  const map = {};
+  buchungen.filter(b=>b.typ==='strafe'||b.typ==='phrase').forEach(b=>{
+    if (!map[b.spielerName]) map[b.spielerName]={total:0,count:0};
+    map[b.spielerName].total += b.betrag; map[b.spielerName].count++;
+  });
+  const sorted = Object.entries(map).sort((a,b)=>b[1].total-a[1].total);
+  const wrap = document.getElementById('ranglisteWrap');
+  if (!sorted.length) { wrap.innerHTML='<div class="empty-state">Noch keine Strafen verbucht</div>'; return; }
+  const max = sorted[0][1].total;
+  const mc = ['rn-gold','rn-silver','rn-bronze'];
+  wrap.innerHTML = sorted.map(([name,d],i)=>`
     <div class="rank-row">
       <div class="rank-num ${mc[i]||''}">${i+1}</div>
-      <div class="rank-name">${name}<br><span style="font-size:12px;color:var(--muted)">${d.count} Strafe${d.count!==1?'n':''}</span></div>
+      <div class="rank-name">${name}<br><span style="font-size:12px;color:var(--muted)">${d.count} Eintrag${d.count!==1?'e':''}</span></div>
       <div class="rank-bar-wrap"><div class="rank-bar" style="width:${(d.total/max*100).toFixed(0)}%"></div></div>
       <div class="rank-amt">${fmt(d.total)}</div>
     </div>`).join('');
 }
-function renderStrafen(){
-  const isAdmin=me&&me.rolle==='admin';
-  const list=buchungen.filter(b=>b.typ==='strafe');
-  document.getElementById('strafenBody').innerHTML=!list.length
-    ?'<tr><td colspan="5" class="empty-state">Noch keine Strafen</td></tr>'
-    :list.map(b=>`<tr><td>${b.datum}</td><td>${b.spielerName}</td><td>${b.beschreibung}</td><td style="text-align:right" class="an">−${fmt(b.betrag)}</td><td>${isAdmin?`<button class="ico-btn" onclick="delStrafe('${b.id}')">🗑</button>`:''}</td></tr>`).join('');
+
+function renderPhraseHist() {
+  const isAdmin = me && me.rolle==='admin';
+  const filterSpieler = document.getElementById('ph-filter-spieler').value;
+  const search = (document.getElementById('ph-search').value || '').toLowerCase().trim();
+
+  let list = buchungen.filter(b => {
+    if (b.typ !== 'phrase') return false;
+    if (filterSpieler && b.spielerId !== filterSpieler) return false;
+    if (search && !b.beschreibung.toLowerCase().includes(search) && !b.spielerName.toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (phPage >= totalPages) phPage = totalPages - 1;
+  const paged = list.slice(phPage * PAGE_SIZE, (phPage+1) * PAGE_SIZE);
+
+  document.getElementById('phrasenHistBody').innerHTML = paged.length===0
+    ? '<tr><td colspan="5" class="empty-state">Keine Phrasen gefunden</td></tr>'
+    : paged.map(b=>`<tr>
+        <td>${b.datum}</td><td>${b.spielerName}</td><td>${b.beschreibung}</td>
+        <td style="text-align:right" class="an">−${fmt(b.betrag)}</td>
+        <td>${isAdmin?`<button class="ico-btn" onclick="delPhrase('${b.id}')">🗑</button>`:''}</td>
+      </tr>`).join('');
+
+  renderPagination('phPag', phPage, totalPages, p=>{ phPage=p; renderPhraseHist(); });
+
+  // Strafen-Historie (Katalog)
+  const isAdmin2 = isAdmin;
+  const strafen = buchungen.filter(b=>b.typ==='strafe');
+  document.getElementById('strafenBody').innerHTML = !strafen.length
+    ? '<tr><td colspan="5" class="empty-state">Noch keine Katalog-Strafen verbucht</td></tr>'
+    : strafen.map(b=>`<tr>
+        <td>${b.datum}</td><td>${b.spielerName}</td><td>${b.beschreibung}</td>
+        <td style="text-align:right" class="an">−${fmt(b.betrag)}</td>
+        <td>${isAdmin2?`<button class="ico-btn" onclick="delStrafe('${b.id}')">🗑</button>`:''}</td>
+      </tr>`).join('');
 }
 
+// ════════════════════════════════════════════════════════
+// PAGINATION
+// ════════════════════════════════════════════════════════
+function renderPagination(containerId, currentPage, totalPages, onPageClick) {
+  const el = document.getElementById(containerId);
+  if (totalPages <= 1) { el.innerHTML=''; return; }
+
+  const start = currentPage * PAGE_SIZE + 1;
+  const end = Math.min((currentPage+1)*PAGE_SIZE, /* approx */ (currentPage+1)*PAGE_SIZE);
+
+  let btns = '';
+  for (let i=0; i<totalPages; i++) {
+    btns += `<button class="page-btn${i===currentPage?' active':''}" onclick="(${onPageClick.toString()})(${i})" ${i===currentPage?'disabled':''}>${i+1}</button>`;
+  }
+
+  el.innerHTML = `
+    <span class="page-info">Seite ${currentPage+1} von ${totalPages}</span>
+    <div class="page-btns">
+      <button class="page-btn" onclick="(${onPageClick.toString()})(${currentPage-1})" ${currentPage===0?'disabled':''}>← Zurück</button>
+      ${btns}
+      <button class="page-btn" onclick="(${onPageClick.toString()})(${currentPage+1})" ${currentPage===totalPages-1?'disabled':''}>Weiter →</button>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════
 // EXPORT
-function exportKasse(){
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(buchungen.map(b=>({'Datum':b.datum,'Typ':typLbl(b.typ),'Beschreibung':b.beschreibung,'Spieler':b.spielerName||'','Betrag (€)':(b.typ==='ausgabe'?-1:1)*b.betrag}))),'Buchungen');
-  const sm={};buchungen.filter(b=>b.typ==='schuld').forEach(b=>{sm[b.spielerName]=(sm[b.spielerName]||0)+b.betrag});
-  const sr=Object.entries(sm).map(([n,v])=>({'Spieler':n,'Schulden (€)':v}));
-  if(sr.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(sr),'Schulden');
-  const rm={};buchungen.filter(b=>b.typ==='strafe').forEach(b=>{if(!rm[b.spielerName])rm[b.spielerName]={total:0,count:0};rm[b.spielerName].total+=b.betrag;rm[b.spielerName].count++});
-  const rr=Object.entries(rm).sort((a,b)=>b[1].total-a[1].total).map(([n,d],i)=>({'Rang':i+1,'Spieler':n,'Strafen':d.count,'Gesamt (€)':d.total}));
-  if(rr.length)XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rr),'Rangliste');
+// ════════════════════════════════════════════════════════
+function exportKasse() {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(buchungen.map(b=>({
+    'Datum':b.datum,'Typ':typLbl(b.typ),'Beschreibung':b.beschreibung,
+    'Spieler':b.spielerName||'','Betrag (€)':(b.typ==='ausgabe'?-1:1)*b.betrag
+  }))),'Buchungen');
+  const rm={};
+  buchungen.filter(b=>b.typ==='strafe'||b.typ==='phrase').forEach(b=>{
+    if(!rm[b.spielerName])rm[b.spielerName]={total:0,count:0};
+    rm[b.spielerName].total+=b.betrag;rm[b.spielerName].count++;
+  });
+  const rr=Object.entries(rm).sort((a,b)=>b[1].total-a[1].total).map(([n,d],i)=>({'Rang':i+1,'Spieler':n,'Einträge':d.count,'Gesamt (€)':d.total}));
+  if(rr.length) XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rr),'Rangliste');
   XLSX.writeFile(wb,'Handball-Kasse-'+today()+'.xlsx');
 }
 
+// ════════════════════════════════════════════════════════
 // HELPERS
-function typLbl(t){return{einnahme:'Einnahme',ausgabe:'Ausgabe',strafe:'Strafe',schuld:'Schuld'}[t]||t}
+// ════════════════════════════════════════════════════════
+function typLbl(t){return{einnahme:'Einnahme',ausgabe:'Ausgabe',strafe:'Strafe',phrase:'Phrase',schuld:'Schuld'}[t]||t}
 function fmt(n){return'€'+Math.abs(n).toFixed(2).replace('.',',')}
 function fmtN(n){return n.toFixed(2).replace('.',',')}
+function today(){return new Date().toISOString().split('T')[0]}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
 function flash(id,msg){const el=document.getElementById(id);el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3500)}
 
-function confirmDel(fn){pendingDel=fn;document.getElementById('delModal').classList.add('open')}
-function closeModal(){document.getElementById('delModal').classList.remove('open');pendingDel=null}
-document.getElementById('delConfirm').onclick=()=>{if(pendingDel)pendingDel();closeModal()};
-document.getElementById('delModal').addEventListener('click',e=>{if(e.target.id==='delModal')closeModal()});
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.getElementById('delConfirm').onclick=()=>{if(pendingDel)pendingDel();closeModal('delModal')};
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)});
+});
+function confirmDel(fn){pendingDel=fn;openModal('delModal')}
 
-function renderAll(){renderSpieler();renderKatalog();renderKasse();renderRangliste();renderStrafen()}
-init();
+document.getElementById('buch-datum').value = today();
+
+function renderAll(){
+  renderSpieler();
+  renderKatalog();
+  renderKasse();
+  renderRangliste();
+  renderPhraseHist();
+}
 </script>
 </body>
 </html>
