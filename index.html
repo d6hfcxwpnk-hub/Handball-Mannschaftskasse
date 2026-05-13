@@ -165,6 +165,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .tag{display:inline-block;border-radius:4px;font-size:11px;padding:2px 7px;text-transform:uppercase;font-weight:600;letter-spacing:.4px}
 .tag-einnahme{background:rgba(58,255,176,.15);color:var(--ok)}
 .tag-ausgabe{background:rgba(255,77,109,.15);color:var(--err)}
+.tag-einzahlung{background:rgba(232,255,58,.15);color:var(--acc)}
+.tag-auslage{background:rgba(100,160,255,.15);color:#6eb5ff}
 .tag-strafe{background:rgba(255,106,53,.15);color:var(--acc2)}
 .tag-phrase{background:rgba(168,224,96,.15);color:#a8e060}
 .tag-schuld{background:rgba(255,170,0,.15);color:var(--warn)}
@@ -293,22 +295,27 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="section active" id="tab-kasse">
       <div class="grid-3">
         <div class="stat-box"><div class="stat-label">Kassenstand</div><div class="stat-value sv-y" id="st-saldo">€0,00</div></div>
-        <div class="stat-box"><div class="stat-label">Einnahmen</div><div class="stat-value sv-g" id="st-ein">€0,00</div></div>
-        <div class="stat-box"><div class="stat-label">Ausgaben</div><div class="stat-value sv-r" id="st-aus">€0,00</div></div>
+        <div class="stat-box"><div class="stat-label">Zuflüsse</div><div class="stat-value sv-g" id="st-ein">€0,00</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Einnahmen + Einzahlungen + Strafen + Phrasen</div></div>
+        <div class="stat-box"><div class="stat-label">Abflüsse</div><div class="stat-value sv-r" id="st-aus">€0,00</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Ausgaben + Auslagen</div></div>
       </div>
 
-      <!-- Buchung erfassen (Admin, nur Einnahme/Ausgabe) -->
+      <!-- Buchung erfassen (Admin) -->
       <div class="card admin-only">
         <div class="card-title">Buchung erfassen</div>
         <div class="form-row">
-          <div class="fg" style="max-width:180px"><label>Typ</label>
-            <select id="buch-typ">
-              <option value="einnahme">Einnahme</option>
-              <option value="ausgabe">Ausgabe</option>
+          <div class="fg" style="max-width:200px"><label>Typ</label>
+            <select id="buch-typ" onchange="onBuchTypChange()">
+              <option value="einnahme">Einnahme (z. B. Preisgeld)</option>
+              <option value="ausgabe">Ausgabe (z. B. Harz)</option>
+              <option value="einzahlung">Einzahlung Spieler</option>
+              <option value="auslage">Auslage Spieler</option>
             </select>
           </div>
           <div class="fg"><label>Betrag (€)</label><input type="number" id="buch-betrag" placeholder="0.00" min="0" step="0.01"></div>
           <div class="fg"><label>Datum</label><input type="date" id="buch-datum"></div>
+        </div>
+        <div class="form-row">
+          <div class="fg" id="buch-spieler-wrap" style="display:none"><label>Spieler</label><select id="buch-spieler"></select></div>
           <div class="fg" style="flex:3"><label>Beschreibung</label><input type="text" id="buch-desc" placeholder="z. B. Turniergebühr, Trikots…"></div>
         </div>
         <button class="btn btn-p" onclick="addBuchung()">Buchung speichern</button>
@@ -353,11 +360,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <div class="pagination" id="buchPag"></div>
       </div>
 
-      <!-- Schulden -->
+      <!-- Spieler-Salden -->
       <div class="card">
-        <div class="card-title">Schulden-Übersicht</div>
+        <div class="card-title">Spieler-Salden</div>
+        <p class="text-muted mb-2" style="font-size:12px">Negativ = Spieler schuldet der Kasse &nbsp;|&nbsp; Positiv = Kasse schuldet dem Spieler</p>
         <div class="table-wrap"><table>
-          <thead><tr><th>Spieler</th><th style="text-align:right">Offen (€)</th></tr></thead>
+          <thead><tr><th>Spieler</th><th style="text-align:right">Einzahlungen</th><th style="text-align:right">Auslagen</th><th style="text-align:right">Strafen & Phrasen</th><th style="text-align:right">Saldo</th></tr></thead>
           <tbody id="schuldenBody"></tbody>
         </table></div>
       </div>
@@ -723,6 +731,7 @@ function renderSpieler() {
   const allOpt = '<option value="">Alle</option>';
   document.getElementById('ps-spieler').innerHTML   = '<option value="">— Bitte wählen —</option>' + opts;
   document.getElementById('ph-spieler').innerHTML   = '<option value="">— Bitte wählen —</option>' + opts;
+  document.getElementById('buch-spieler').innerHTML = opts || '<option value="">Keine Spieler</option>';
   document.getElementById('buch-filter-spieler').innerHTML = allOpt + opts;
   document.getElementById('ph-filter-spieler').innerHTML   = allOpt + opts;
 }
@@ -820,15 +829,29 @@ function onKatChange() {
 }
 
 // ════════════════════════════════════════════════════════
-// KASSE – BUCHUNGEN (nur Einnahme/Ausgabe)
+// KASSE – BUCHUNGEN
 // ════════════════════════════════════════════════════════
+function onBuchTypChange() {
+  const typ = document.getElementById('buch-typ').value;
+  const needsSpieler = typ === 'einzahlung' || typ === 'auslage';
+  document.getElementById('buch-spieler-wrap').style.display = needsSpieler ? 'flex' : 'none';
+}
 function addBuchung() {
   const typ = document.getElementById('buch-typ').value;
   const betrag = parseFloat(document.getElementById('buch-betrag').value);
   const datum = document.getElementById('buch-datum').value;
   const beschreibung = document.getElementById('buch-desc').value.trim();
   if (!betrag || betrag<=0 || !datum || !beschreibung) return;
-  buchungen.unshift({id:uid(), typ, betrag, datum, beschreibung, spielerId:'', spielerName:''});
+
+  const needsSpieler = typ === 'einzahlung' || typ === 'auslage';
+  let spielerId = '', spielerName = '';
+  if (needsSpieler) {
+    spielerId = document.getElementById('buch-spieler').value;
+    const sp = spieler.find(s=>s.id===spielerId);
+    spielerName = sp ? sp.name : '';
+  }
+
+  buchungen.unshift({id:uid(), typ, betrag, datum, beschreibung, spielerId, spielerName});
   saveBuchungen();
   document.getElementById('buch-betrag').value = '';
   document.getElementById('buch-desc').value = '';
@@ -881,27 +904,56 @@ function delStrafe(id) {
 
 // ════════════════════════════════════════════════════════
 // RENDER KASSE
+// Kassenstand = Einzahlungen + Einnahmen + Strafen + Phrasen − Ausgaben − Auslagen
+// Spieler-Saldo = Einzahlungen + Auslagen − Strafen − Phrasen
+//   Negativ = Spieler schuldet Kasse, Positiv = Kasse schuldet Spieler
 // ════════════════════════════════════════════════════════
 function renderKasse() {
-  const isAdmin = me && me.rolle==='admin';
-  let ein=0, aus=0;
+  let zufluss = 0, abfluss = 0;
   buchungen.forEach(b => {
-    if (b.typ==='einnahme'||b.typ==='strafe'||b.typ==='phrase') ein += b.betrag;
-    if (b.typ==='ausgabe') aus += b.betrag;
+    if (b.typ==='einnahme' || b.typ==='einzahlung' || b.typ==='strafe' || b.typ==='phrase') zufluss += b.betrag;
+    if (b.typ==='ausgabe'  || b.typ==='auslage') abfluss += b.betrag;
   });
-  document.getElementById('st-saldo').textContent = fmt(ein-aus);
-  document.getElementById('st-ein').textContent   = fmt(ein);
-  document.getElementById('st-aus').textContent   = fmt(aus);
+  document.getElementById('st-saldo').textContent = fmt(zufluss - abfluss);
+  document.getElementById('st-ein').textContent   = fmt(zufluss);
+  document.getElementById('st-aus').textContent   = fmt(abfluss);
 
   renderBuchungen();
 
-  // Schulden (nur Spieler mit typ='strafe' oder 'phrase' die noch offen sind – hier vereinfacht alle Summen)
-  const sm = {};
-  buchungen.filter(b=>b.typ==='schuld').forEach(b=>{ sm[b.spielerName]=(sm[b.spielerName]||0)+b.betrag; });
-  const entries = Object.entries(sm).filter(([,v])=>v>0);
-  document.getElementById('schuldenBody').innerHTML = entries.length===0
-    ? '<tr><td colspan="2" class="empty-state">Keine offenen Schulden</td></tr>'
-    : entries.map(([n,v])=>`<tr><td>${n}</td><td style="text-align:right" class="an">−${fmt(v)}</td></tr>`).join('');
+  // Spieler-Salden: aggregiere pro Spieler-ID
+  const salden = {}; // {id: {name, einzahlung, auslage, strafen}}
+  spieler.forEach(s => { salden[s.id] = {name:s.name, einzahlung:0, auslage:0, strafen:0}; });
+
+  buchungen.forEach(b => {
+    if (!b.spielerId) return;
+    if (!salden[b.spielerId]) salden[b.spielerId] = {name:b.spielerName, einzahlung:0, auslage:0, strafen:0};
+    if (b.typ==='einzahlung') salden[b.spielerId].einzahlung += b.betrag;
+    if (b.typ==='auslage')    salden[b.spielerId].auslage    += b.betrag;
+    if (b.typ==='strafe' || b.typ==='phrase') salden[b.spielerId].strafen += b.betrag;
+  });
+
+  // Nur Spieler mit mindestens einer Transaktion anzeigen
+  const entries = Object.values(salden).filter(s => s.einzahlung > 0 || s.auslage > 0 || s.strafen > 0);
+  entries.sort((a,b) => {
+    const saldoA = a.einzahlung + a.auslage - a.strafen;
+    const saldoB = b.einzahlung + b.auslage - b.strafen;
+    return saldoA - saldoB; // Größte Schulden oben
+  });
+
+  document.getElementById('schuldenBody').innerHTML = entries.length === 0
+    ? '<tr><td colspan="5" class="empty-state">Noch keine Spieler-Buchungen</td></tr>'
+    : entries.map(s => {
+        const saldo = s.einzahlung + s.auslage - s.strafen;
+        const saldoClass = saldo < 0 ? 'an' : saldo > 0 ? 'ap' : '';
+        const saldoSign  = saldo < 0 ? '−' : saldo > 0 ? '+' : '';
+        return `<tr>
+          <td><strong>${s.name}</strong></td>
+          <td style="text-align:right" class="ap">+${fmt(s.einzahlung)}</td>
+          <td style="text-align:right" class="ap">+${fmt(s.auslage)}</td>
+          <td style="text-align:right" class="an">−${fmt(s.strafen)}</td>
+          <td style="text-align:right;font-weight:700" class="${saldoClass}">${saldoSign}${fmt(saldo)}</td>
+        </tr>`;
+      }).join('');
 }
 
 function renderBuchungen() {
@@ -925,7 +977,7 @@ function renderBuchungen() {
         <td><span class="tag tag-${b.typ}">${typLbl(b.typ)}</span></td>
         <td>${b.beschreibung}</td>
         <td>${b.spielerName||'–'}</td>
-        <td style="text-align:right" class="${b.typ==='ausgabe'?'an':'ap'}">${b.typ==='ausgabe'?'−':'+'}${fmt(b.betrag)}</td>
+        <td style="text-align:right" class="${(b.typ==='ausgabe'||b.typ==='auslage')?'an':'ap'}">${(b.typ==='ausgabe'||b.typ==='auslage')?'−':'+'}${fmt(b.betrag)}</td>
         <td>${isAdmin?`<button class="ico-btn" onclick="delBuchung('${b.id}')">🗑</button>`:''}</td>
       </tr>`).join('');
 
@@ -1040,7 +1092,7 @@ function exportKasse() {
 // ════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════
-function typLbl(t){return{einnahme:'Einnahme',ausgabe:'Ausgabe',strafe:'Strafe',phrase:'Phrase',schuld:'Schuld'}[t]||t}
+function typLbl(t){return{einnahme:'Einnahme',ausgabe:'Ausgabe',einzahlung:'Einzahlung',auslage:'Auslage',strafe:'Strafe',phrase:'Phrase',schuld:'Schuld'}[t]||t}
 function fmt(n){return'€'+Math.abs(n).toFixed(2).replace('.',',')}
 function fmtN(n){return n.toFixed(2).replace('.',',')}
 function today(){return new Date().toISOString().split('T')[0]}
