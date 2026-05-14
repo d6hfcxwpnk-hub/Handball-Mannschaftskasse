@@ -19,14 +19,13 @@ import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebase
 // ║  (Werte aus Firebase Console → Projekteinstellungen)     ║
 // ╚══════════════════════════════════════════════════════════╝
 const firebaseConfig = {
-  apiKey: "AIzaSyAUQT4XVtBCD81hIcD4a6x2Z2tL7uFNzNs",
-  authDomain: "mannschaftskasse-78fb0.firebaseapp.com",
-  databaseURL: "https://mannschaftskasse-78fb0-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "mannschaftskasse-78fb0",
-  storageBucket: "mannschaftskasse-78fb0.firebasestorage.app",
-  messagingSenderId: "223907068911",
-  appId: "1:223907068911:web:458515fa87cbfd7ef6141a",
-  measurementId: "G-06Z2BBJLF0"
+  apiKey:            "DEIN_API_KEY",
+  authDomain:        "DEIN_PROJEKT.firebaseapp.com",
+  databaseURL:       "https://DEIN_PROJEKT-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:         "DEIN_PROJEKT",
+  storageBucket:     "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId:             "DEINE_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -914,7 +913,10 @@ function renderKasse() {
     if (b.typ==='einnahme' || b.typ==='einzahlung' || b.typ==='strafe' || b.typ==='phrase') zufluss += b.betrag;
     if (b.typ==='ausgabe'  || b.typ==='auslage') abfluss += b.betrag;
   });
-  document.getElementById('st-saldo').textContent = fmt(zufluss - abfluss);
+  const kassenstand = zufluss - abfluss;
+  const saldoEl = document.getElementById('st-saldo');
+  saldoEl.textContent = (kassenstand < 0 ? '−' : '') + fmt(kassenstand);
+  saldoEl.className = 'stat-value ' + (kassenstand < 0 ? 'sv-r' : 'sv-y');
   document.getElementById('st-ein').textContent   = fmt(zufluss);
   document.getElementById('st-aus').textContent   = fmt(abfluss);
 
