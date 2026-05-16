@@ -8,14 +8,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <!-- ═══════════════════════════════════════════════════════════
-     FIREBASE SDK
+     FIREBASE SDK – klassische Script-Tags (kein module)
+     Zuverlässiger auf allen Browsern inkl. Mobile
      ═══════════════════════════════════════════════════════════ -->
-<script type="module">
-import { initializeApp }                                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue }              from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getAuth, signInWithEmailAndPassword, signOut,
-         onAuthStateChanged }                           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script>
 // ╔══════════════════════════════════════════════════════════╗
 // ║  FIREBASE KONFIGURATION – hier eintragen                 ║
 // ║  (Werte aus Firebase Console → Projekteinstellungen)     ║
@@ -31,44 +30,36 @@ const firebaseConfig = {
   measurementId: "G-06Z2BBJLF0"
 };
 
-const app  = initializeApp(firebaseConfig);
-const db   = getDatabase(app);
-const auth = getAuth(app);
+firebase.initializeApp(firebaseConfig);
+const _db   = firebase.database();
+const _auth = firebase.auth();
 
-// Statt Event zu dispatchen: Funktionen direkt auf window setzen
-// und dann eine Init-Funktion aufrufen die der Haupt-Script registriert.
-// Das vermeidet das Race-Condition-Problem mit module-Events auf Mobile.
-
-window.fbSet = async function(path, data) {
-  await set(ref(db, path), data);
+window.fbSet = function(path, data) {
+  return _db.ref(path).set(data);
 };
 
 window.fbListen = function(path, cb) {
-  onValue(ref(db, path), snap => cb(snap.val()));
+  _db.ref(path).on('value', snap => cb(snap.val()));
 };
 
-window.fbSignIn = async function(email, password) {
-  return signInWithEmailAndPassword(auth, email, password);
+window.fbSignIn = function(email, password) {
+  return _auth.signInWithEmailAndPassword(email, password);
 };
 
-window.fbSignOut = async function() {
-  return signOut(auth);
+window.fbSignOut = function() {
+  return _auth.signOut();
 };
 
-onAuthStateChanged(auth, user => {
+// Auth-Zustandsänderung – läuft synchron im selben Script-Kontext
+_auth.onAuthStateChanged(user => {
   if (window.onFbAuthChanged) window.onFbAuthChanged(user);
 });
 
-// Warte bis Haupt-Script bereit ist, dann initialisieren
-function tryInit() {
-  if (window.onFirebaseReady) {
-    window.onFirebaseReady();
-  } else {
-    // Haupt-Script noch nicht geladen – kurz warten
-    setTimeout(tryInit, 50);
-  }
-}
-tryInit();
+// Firebase ist jetzt sofort bereit – kein Warten nötig
+// onFirebaseReady wird nach dem Haupt-Script-Block aufgerufen
+window.addEventListener('DOMContentLoaded', () => {
+  if (window.onFirebaseReady) window.onFirebaseReady();
+});
 </script>
 
 <style>
