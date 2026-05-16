@@ -50,16 +50,13 @@ window.fbSignOut = function() {
   return _auth.signOut();
 };
 
-// Auth-Zustandsänderung – läuft synchron im selben Script-Kontext
+// Auth-Zustandsänderung
 _auth.onAuthStateChanged(user => {
   if (window.onFbAuthChanged) window.onFbAuthChanged(user);
 });
 
-// Firebase ist jetzt sofort bereit – kein Warten nötig
-// onFirebaseReady wird nach dem Haupt-Script-Block aufgerufen
-window.addEventListener('DOMContentLoaded', () => {
-  if (window.onFirebaseReady) window.onFirebaseReady();
-});
+// onFirebaseReady wird direkt am Ende des Haupt-Scripts aufgerufen
+// – kein Event, kein Timing-Problem
 </script>
 
 <style>
@@ -181,6 +178,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .tag-strafe{background:rgba(255,106,53,.15);color:var(--acc2)}
 .tag-phrase{background:rgba(168,224,96,.15);color:#a8e060}
 .tag-monatsbeitrag{background:rgba(110,181,255,.15);color:#6eb5ff}
+.tag-startbeitrag{background:rgba(180,130,255,.15);color:#b482ff}
 .tag-schuld{background:rgba(255,170,0,.15);color:var(--warn)}
 .tag-admin{background:rgba(232,255,58,.15);color:var(--acc)}
 .tag-spieler{background:rgba(255,255,255,.08);color:var(--muted)}
@@ -411,7 +409,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <div class="card-title">Spieler-Salden</div>
         <p class="text-muted mb-2" style="font-size:12px">Negativ = Spieler schuldet der Kasse &nbsp;|&nbsp; Positiv = Kasse schuldet dem Spieler</p>
         <div class="table-wrap"><table>
-          <thead><tr><th>Spieler</th><th style="text-align:right">Eingezahlt</th><th style="text-align:right">Auslagen</th><th style="text-align:right">Strafen</th><th style="text-align:right">Saldo</th></tr></thead>
+          <thead><tr><th>Spieler</th><th style="text-align:right">Eingezahlt</th><th style="text-align:right">Auslagen</th><th style="text-align:right">Strafen</th><th style="text-align:right">Beiträge</th><th style="text-align:right">Saldo</th></tr></thead>
           <tbody id="schuldenBody"></tbody>
         </table></div>
       </div>
@@ -487,13 +485,16 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="fg" style="max-width:180px"><label>Monatsbeitrag (€)</label>
             <input type="number" id="sp-beitrag" placeholder="0.00" min="0" step="0.01" value="0">
           </div>
+          <div class="fg" style="max-width:180px"><label>Startbeitrag (€)</label>
+            <input type="number" id="sp-startbeitrag" placeholder="0.00" min="0" step="0.01" value="0">
+          </div>
         </div>
         <button class="btn btn-p" onclick="addSpieler()">Spieler anlegen</button>
       </div>
       <div class="card">
         <div class="card-title">Spielerliste</div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Name</th><th>Rolle</th><th style="text-align:right">Monatsbeitrag</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Rolle</th><th style="text-align:right">Monatsbeitrag</th><th style="text-align:right">Startbeitrag</th><th></th></tr></thead>
           <tbody id="spielerBody"></tbody>
         </table></div>
       </div>
@@ -851,8 +852,8 @@ function showApp() {
   });
   switchTab('kasse');
   renderAll();
-  // Monatsbeiträge automatisch prüfen (nur Admin kann buchen)
-  if (isAdmin) setTimeout(checkMonatsbeitraege, 500);
+  // Beiträge automatisch prüfen (nur Admin kann buchen)
+  if (isAdmin) setTimeout(checkMonatsbeitraege, 500); // checkMonatsbeitraege ruft checkStartbeitrag intern auf
 }
 
 async function logout() {
@@ -881,38 +882,49 @@ function switchTab(tab) {
 // SPIELER
 // ════════════════════════════════════════════════════════
 function addSpieler() {
-  const name    = document.getElementById('sp-name').value.trim();
-  const rolle   = document.getElementById('sp-rolle').value;
-  const beitrag = parseFloat(document.getElementById('sp-beitrag').value) || 0;
+  const name          = document.getElementById('sp-name').value.trim();
+  const rolle         = document.getElementById('sp-rolle').value;
+  const beitrag       = parseFloat(document.getElementById('sp-beitrag').value) || 0;
+  const startbeitrag  = parseFloat(document.getElementById('sp-startbeitrag').value) || 0;
   if (!name) return;
-  spieler.push({id: uid(), name, rolle, monatsbeitrag: beitrag});
+  spieler.push({id: uid(), name, rolle, monatsbeitrag: beitrag, startbeitrag});
   saveSpieler();
-  document.getElementById('sp-name').value    = '';
-  document.getElementById('sp-beitrag').value = '0';
+  document.getElementById('sp-name').value         = '';
+  document.getElementById('sp-beitrag').value      = '0';
+  document.getElementById('sp-startbeitrag').value = '0';
 }
 function delSpieler(id) {
   confirmDel(() => { spieler = spieler.filter(s=>s.id!==id); saveSpieler(); });
 }
 function editSpielerBeitrag(id) {
-  const input = document.getElementById('sp-edit-'+id);
-  if (!input) return;
-  const beitrag = parseFloat(input.value) || 0;
-  spieler = spieler.map(s => s.id===id ? {...s, monatsbeitrag: beitrag} : s);
+  const mEl = document.getElementById('sp-edit-m-'+id);
+  const sEl = document.getElementById('sp-edit-s-'+id);
+  const monatsbeitrag = mEl ? parseFloat(mEl.value) || 0 : 0;
+  const startbeitrag  = sEl ? parseFloat(sEl.value) || 0 : 0;
+  spieler = spieler.map(s => s.id===id ? {...s, monatsbeitrag, startbeitrag} : s);
   saveSpieler();
 }
 function renderSpieler() {
   document.getElementById('spielerBody').innerHTML = spieler.length === 0
-    ? '<tr><td colspan="4" class="empty-state">Noch keine Spieler</td></tr>'
+    ? '<tr><td colspan="5" class="empty-state">Noch keine Spieler</td></tr>'
     : spieler.map(s=>`
         <tr>
           <td>${s.name}</td>
           <td><span class="tag tag-${s.rolle}">${s.rolle==='admin'?'Admin':'Spieler'}</span></td>
           <td style="text-align:right">
             <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
-              <input class="td-input" id="sp-edit-${s.id}" type="number" step="0.01" min="0"
+              <input class="td-input" id="sp-edit-m-${s.id}" type="number" step="0.01" min="0"
                 value="${s.monatsbeitrag||0}" style="max-width:80px;text-align:right"
                 onchange="editSpielerBeitrag('${s.id}')">
-              <span style="color:var(--muted);font-size:12px">€/Monat</span>
+              <span style="color:var(--muted);font-size:12px">€</span>
+            </div>
+          </td>
+          <td style="text-align:right">
+            <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+              <input class="td-input" id="sp-edit-s-${s.id}" type="number" step="0.01" min="0"
+                value="${s.startbeitrag||0}" style="max-width:80px;text-align:right"
+                onchange="editSpielerBeitrag('${s.id}')">
+              <span style="color:var(--muted);font-size:12px">€</span>
             </div>
           </td>
           <td><button class="ico-btn" onclick="delSpieler('${s.id}')">🗑</button></td>
@@ -1102,76 +1114,86 @@ function delStrafe(id) {
 }
 
 // ════════════════════════════════════════════════════════
-// MONATSBEITRÄGE (Punkt 8)
-// Prüft beim App-Start ob der aktuelle Monat bereits
-// gebucht wurde. Falls nicht → automatisch buchen.
+// MONATSBEITRÄGE & STARTBEITRAG
+// Saison: Juli – Mai. Startbeitrag wird am 01. August gebucht.
+// Saison-Key = Jahr des August-Starts (z. B. 2024 für Jul24–Mai25)
 // ════════════════════════════════════════════════════════
-function monatKey(datum) {
-  // "2025-01" aus einem Datum-String
-  return datum.substring(0, 7);
+function monatKey(datum) { return datum.substring(0, 7); }
+
+function saisonKey(datum) {
+  // Saison beginnt im Juli. August des gleichen Jahres gehört zu dieser Saison.
+  // Saison-Key = Jahr in dem der August fällt
+  const d = new Date(datum);
+  const m = d.getMonth(); // 0=Jan, 6=Jul, 7=Aug
+  // Monate Jul(6)–Dez(11): Saison-Key = dieses Jahr
+  // Monate Jan(0)–Mai(4): Saison-Key = letztes Jahr (da Saison im Juli des Vorjahres startete)
+  return m >= 6 ? d.getFullYear() : d.getFullYear() - 1;
 }
 
 function checkMonatsbeitraege() {
-  const now    = new Date();
-  const monat  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const now   = new Date();
+  const monat = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   bucheMonatsbeitraege(monat, false);
+  checkStartbeitrag();
 }
 
 function bucheMonatsbeitraege(monat, manuell) {
   if (!monat) return;
   const alertEl = document.getElementById('beitragAlert');
-
-  // Bereits gebucht für diesen Monat?
   const bereitsGebucht = buchungen.some(b =>
     b.typ === 'monatsbeitrag' && monatKey(b.datum) === monat
   );
-
-  if (bereitsGebucht && !manuell) return; // Auto: still halten
+  if (bereitsGebucht && !manuell) return;
   if (bereitsGebucht && manuell) {
     if (alertEl) { alertEl.textContent = `Monatsbeiträge für ${monat} wurden bereits gebucht.`; alertEl.classList.add('show'); setTimeout(()=>alertEl.classList.remove('show'),4000); }
     return;
   }
-
-  const spielerMitBeitrag = spieler.filter(s => s.monatsbeitrag && s.monatsbeitrag > 0);
-  if (spielerMitBeitrag.length === 0) return;
-
+  const list = spieler.filter(s => s.monatsbeitrag && s.monatsbeitrag > 0);
+  if (!list.length) return;
   const datum = monat + '-01';
-  spielerMitBeitrag.forEach(s => {
-    buchungen.unshift({
-      id: uid(),
-      typ: 'monatsbeitrag',
-      betrag: s.monatsbeitrag,
-      datum,
-      beschreibung: 'Monatsbeitrag ' + monat,
-      spielerId: s.id,
-      spielerName: s.name,
-    });
+  list.forEach(s => {
+    buchungen.unshift({ id:uid(), typ:'monatsbeitrag', betrag:s.monatsbeitrag, datum,
+      beschreibung:'Monatsbeitrag ' + monat, spielerId:s.id, spielerName:s.name });
   });
   saveBuchungen();
-
   if (manuell && alertEl) {
-    alertEl.textContent = `✓ ${spielerMitBeitrag.length} Monatsbeiträge für ${monat} gebucht.`;
-    alertEl.classList.add('show');
-    setTimeout(()=>alertEl.classList.remove('show'), 4000);
+    alertEl.textContent = `✓ ${list.length} Monatsbeiträge für ${monat} gebucht.`;
+    alertEl.classList.add('show'); setTimeout(()=>alertEl.classList.remove('show'), 4000);
   }
+}
+
+function checkStartbeitrag() {
+  const now = new Date();
+  // Startbeitrag erst ab 01. August buchbar
+  if (now.getMonth() < 7) return; // vor August: nichts tun
+  const saison = saisonKey(now.toISOString());
+  // Bereits für diese Saison gebucht?
+  const bereitsGebucht = buchungen.some(b =>
+    b.typ === 'startbeitrag' && saisonKey(b.datum) === saison
+  );
+  if (bereitsGebucht) return;
+  const list = spieler.filter(s => s.startbeitrag && s.startbeitrag > 0);
+  if (!list.length) return;
+  // Datum: 01. August des Saison-Jahres
+  const datum = `${saison}-08-01`;
+  list.forEach(s => {
+    buchungen.unshift({ id:uid(), typ:'startbeitrag', betrag:s.startbeitrag, datum,
+      beschreibung:`Startbeitrag Saison ${saison}/${saison+1}`, spielerId:s.id, spielerName:s.name });
+  });
+  saveBuchungen();
 }
 
 // ════════════════════════════════════════════════════════
 // RENDER KASSE
 // Buchguthaben = Einnahmen + Strafen + Phrasen − Ausgaben − Auslagen
-// Einnahmen-Box = Einnahmen + Strafen + Phrasen
-// Ausgaben-Box  = Ausgaben + Auslagen
-// Einzahlungen + Monatsbeiträge wirken NUR auf Spieler-Saldo
-//
-// Spieler-Saldo = Einzahlungen + Auslagen − Strafen − Phrasen − Monatsbeiträge
-//   Negativ = Spieler schuldet Kasse, Positiv = Kasse schuldet Spieler
+// Spieler-Saldo = Einzahlungen + Auslagen − Strafen − Phrasen − Monatsbeiträge − Startbeitrag
+// Beiträge-Spalte = Monatsbeiträge + Startbeitrag
 // ════════════════════════════════════════════════════════
 function renderKasse() {
   let einnahmen = 0, ausgaben = 0;
   buchungen.forEach(b => {
     if (b.typ==='einnahme' || b.typ==='strafe' || b.typ==='phrase') einnahmen += b.betrag;
     if (b.typ==='ausgabe'  || b.typ==='auslage') ausgaben += b.betrag;
-    // einzahlung + monatsbeitrag: kein Einfluss auf Buchguthaben
   });
 
   const buchguthaben = einnahmen - ausgaben;
@@ -1184,40 +1206,37 @@ function renderKasse() {
   renderBuchungen();
 
   // ── Spieler-Salden ──────────────────────────────────
-  // Aggregiere pro Spieler-ID (Punkt 6: ein Eintrag pro Spieler)
   const salden = {};
-
-  // Alle bekannten Spieler vorinitialisieren
   spieler.forEach(s => {
-    salden[s.id] = { name: s.name, einzahlung: 0, auslage: 0, strafen: 0 };
+    salden[s.id] = { name:s.name, einzahlung:0, auslage:0, strafen:0, beitraege:0 };
   });
 
   buchungen.forEach(b => {
     if (!b.spielerId) return;
-    // Spieler der zwischenzeitlich gelöscht wurde: trotzdem zeigen
     if (!salden[b.spielerId]) {
-      salden[b.spielerId] = { name: b.spielerName, einzahlung: 0, auslage: 0, strafen: 0 };
+      salden[b.spielerId] = { name:b.spielerName, einzahlung:0, auslage:0, strafen:0, beitraege:0 };
     }
-    if (b.typ==='einzahlung')                        salden[b.spielerId].einzahlung += b.betrag;
-    if (b.typ==='auslage')                           salden[b.spielerId].auslage    += b.betrag;
-    if (b.typ==='strafe' || b.typ==='phrase' || b.typ==='monatsbeitrag')
-                                                     salden[b.spielerId].strafen    += b.betrag;
+    if (b.typ==='einzahlung') salden[b.spielerId].einzahlung += b.betrag;
+    if (b.typ==='auslage')    salden[b.spielerId].auslage    += b.betrag;
+    if (b.typ==='strafe' || b.typ==='phrase')
+                              salden[b.spielerId].strafen    += b.betrag;
+    if (b.typ==='monatsbeitrag' || b.typ==='startbeitrag')
+                              salden[b.spielerId].beitraege  += b.betrag;
   });
 
-  // Nur Spieler mit mindestens einer Transaktion anzeigen
   const entries = Object.values(salden)
-    .filter(s => s.einzahlung > 0 || s.auslage > 0 || s.strafen > 0);
+    .filter(s => s.einzahlung > 0 || s.auslage > 0 || s.strafen > 0 || s.beitraege > 0);
 
   entries.sort((a, b) => {
-    const sa = a.einzahlung + a.auslage - a.strafen;
-    const sb = b.einzahlung + b.auslage - b.strafen;
-    return sa - sb; // Größte Schulden oben
+    const sa = a.einzahlung + a.auslage - a.strafen - a.beitraege;
+    const sb = b.einzahlung + b.auslage - b.strafen - b.beitraege;
+    return sa - sb;
   });
 
   document.getElementById('schuldenBody').innerHTML = entries.length === 0
-    ? '<tr><td colspan="5" class="empty-state">Noch keine Spieler-Buchungen</td></tr>'
+    ? '<tr><td colspan="6" class="empty-state">Noch keine Spieler-Buchungen</td></tr>'
     : entries.map(s => {
-        const saldo      = s.einzahlung + s.auslage - s.strafen;
+        const saldo      = s.einzahlung + s.auslage - s.strafen - s.beitraege;
         const saldoClass = saldo < 0 ? 'an' : saldo > 0 ? 'ap' : '';
         const saldoSign  = saldo < 0 ? '−'  : saldo > 0 ? '+' : '';
         return `<tr>
@@ -1225,6 +1244,7 @@ function renderKasse() {
           <td style="text-align:right" class="ap">+${fmt(s.einzahlung)}</td>
           <td style="text-align:right" class="ap">+${fmt(s.auslage)}</td>
           <td style="text-align:right" class="an">−${fmt(s.strafen)}</td>
+          <td style="text-align:right" class="an">−${fmt(s.beitraege)}</td>
           <td style="text-align:right;font-weight:700" class="${saldoClass}">${saldoSign}${fmt(saldo)}</td>
         </tr>`;
       }).join('');
@@ -1366,7 +1386,7 @@ function exportKasse() {
 // ════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════
-function typLbl(t){return{einnahme:'Einnahme',ausgabe:'Ausgabe',einzahlung:'Einzahlung',auslage:'Auslage',strafe:'Strafe',phrase:'Phrase',monatsbeitrag:'Monatsbeitrag',schuld:'Schuld'}[t]||t}
+function typLbl(t){return{einnahme:'Einnahme',ausgabe:'Ausgabe',einzahlung:'Einzahlung',auslage:'Auslage',strafe:'Strafe',phrase:'Phrase',monatsbeitrag:'Monatsbeitrag',startbeitrag:'Startbeitrag',schuld:'Schuld'}[t]||t}
 function fmt(n){return'€'+Math.abs(n).toFixed(2).replace('.',',')}
 function fmtN(n){return n.toFixed(2).replace('.',',')}
 function today(){return new Date().toISOString().split('T')[0]}
@@ -1390,6 +1410,10 @@ function renderAll(){
   renderRangliste();
   renderPhraseHist();
 }
+
+// Firebase direkt starten – kein Event, kein Timing-Problem
+// Zu diesem Zeitpunkt sind Firebase-SDK und Haupt-Script beide fertig geladen
+onFirebaseReady();
 </script>
 </body>
 </html>
