@@ -277,7 +277,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="login-sub">Wie möchtest du dich einloggen?</div>
 
     <div class="login-modes">
-      <button class="login-mode-btn" onclick="showSpielerPanel()">
+      <button class="login-mode-btn" onclick="loginAsSpieler()">
         <span class="ico">👥</span>
         <span>Spieler-Login</span>
       </button>
@@ -285,12 +285,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <span class="ico">🔐</span>
         <span>Admin-Login</span>
       </button>
-    </div>
-
-    <!-- Spieler-Panel -->
-    <div class="spieler-panel" id="spielerPanel">
-      <button class="back-btn" onclick="showModeSelect()">← Zurück</button>
-      <div id="loginList"><div class="empty-state" style="padding:14px 0">Lade Spieler…</div></div>
     </div>
 
     <!-- Admin-Login Panel (Firebase Auth) -->
@@ -647,7 +641,6 @@ window.onFirebaseReady = function() {
   window.fbListen('spieler', val => {
     spieler = val ? Object.values(val) : [];
     dataLoaded.spieler = true;
-    renderLogin(); // Sofort Login-Liste zeigen
     onDataArrived();
   });
   window.fbListen('buchungen', val => {
@@ -694,15 +687,15 @@ function onDataArrived() {
 
 function tryRestoreSession() {
   const saved = loadSession();
-  if (saved && saved.rolle !== 'admin') {
-    const sp = spieler.find(s => s.id === saved.id);
-    if (sp) { me = sp; showApp(); return; }
-    clearSession();
+  if (saved && saved.rolle === 'spieler') {
+    // Spieler-Session: einfach wiederherstellen, kein Firebase-Lookup nötig
+    me = saved;
+    showApp();
+    return;
   }
   // Admin kommt via onFbAuthChanged
-  // Falls Admin bereits gesetzt (Auth kam vor Daten): App zeigen
   if (me && me.rolle === 'admin') { showApp(); return; }
-  renderLogin();
+  // Kein Login → Login-Screen bleibt
 }
 
 function onDataUpdate() {
@@ -773,34 +766,21 @@ document.getElementById('restoreConfirm').onclick = async () => {
 // LOGIN
 // ════════════════════════════════════════════════════════
 function showModeSelect() {
-  document.getElementById('spielerPanel').classList.remove('open');
   document.getElementById('pinPanel').classList.remove('open');
-}
-function showSpielerPanel() {
-  document.getElementById('spielerPanel').classList.add('open');
-  document.getElementById('pinPanel').classList.remove('open');
-  renderLogin();
 }
 function showPinPanel() {
   document.getElementById('pinPanel').classList.add('open');
-  document.getElementById('spielerPanel').classList.remove('open');
-  document.getElementById('admin-email').value = '';
+  document.getElementById('admin-email').value    = '';
   document.getElementById('admin-password').value = '';
-  document.getElementById('pinErr').textContent = '';
+  document.getElementById('pinErr').textContent   = '';
   setTimeout(() => document.getElementById('admin-email').focus(), 50);
 }
 
-function renderLogin() {
-  const el = document.getElementById('loginList');
-  if (spieler.length === 0) {
-    el.innerHTML = '<div class="empty-state" style="padding:10px 0">Noch keine Spieler – Admin muss zuerst anlegen.</div>';
-    return;
-  }
-  el.innerHTML = spieler.map(s =>
-    `<button class="l-btn" onclick="loginAs('${s.id}')">
-      <span>${s.name}</span>
-      <span class="tag tag-${s.rolle}">${s.rolle==='admin'?'Admin':'Spieler'}</span>
-    </button>`).join('');
+// Spieler-Login: kein Name nötig, direkt rein
+function loginAsSpieler() {
+  me = { id: '__spieler__', name: 'Spieler', rolle: 'spieler' };
+  saveSession(me);
+  showApp();
 }
 
 // Admin-Login via Firebase Authentication
@@ -809,16 +789,12 @@ async function checkAdminLogin() {
   const password = document.getElementById('admin-password').value;
   const errEl    = document.getElementById('pinErr');
   const btn      = document.getElementById('adminLoginBtn');
-
   if (!email || !password) { errEl.textContent = 'Bitte E-Mail und Passwort eingeben.'; return; }
-
   btn.textContent = 'Wird geprüft…';
-  btn.disabled = true;
+  btn.disabled    = true;
   errEl.textContent = '';
-
   try {
     await window.fbSignIn(email, password);
-    // fbAuthUser wird automatisch via fbAuthChanged gesetzt
     me = { id: '__admin__', name: 'Admin', rolle: 'admin' };
     showApp();
   } catch (err) {
@@ -829,15 +805,7 @@ async function checkAdminLogin() {
     errEl.textContent = msg;
   } finally {
     btn.textContent = 'Einloggen';
-    btn.disabled = false;
-  }
-}
-
-function loginAs(id) {
-  me = spieler.find(s=>s.id===id);
-  if (me) {
-    saveSession(me); // Problem 4: Session speichern
-    showApp();
+    btn.disabled    = false;
   }
 }
 
