@@ -11,40 +11,56 @@
      FIREBASE SDK
      ═══════════════════════════════════════════════════════════ -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { initializeApp }                                from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, onValue }              from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, signOut,
+         onAuthStateChanged }                           from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ╔══════════════════════════════════════════════════════════╗
 // ║  FIREBASE KONFIGURATION – hier eintragen                 ║
 // ║  (Werte aus Firebase Console → Projekteinstellungen)     ║
 // ╚══════════════════════════════════════════════════════════╝
 const firebaseConfig = {
-  apiKey:            "DEIN_API_KEY",
-  authDomain:        "DEIN_PROJEKT.firebaseapp.com",
-  databaseURL:       "https://DEIN_PROJEKT-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId:         "DEIN_PROJEKT",
-  storageBucket:     "DEIN_PROJEKT.appspot.com",
-  messagingSenderId: "DEINE_SENDER_ID",
-  appId:             "DEINE_APP_ID"
+  apiKey: "AIzaSyAUQT4XVtBCD81hIcD4a6x2Z2tL7uFNzNs",
+  authDomain: "mannschaftskasse-78fb0.firebaseapp.com",
+  databaseURL: "https://mannschaftskasse-78fb0-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "mannschaftskasse-78fb0",
+  storageBucket: "mannschaftskasse-78fb0.firebasestorage.app",
+  messagingSenderId: "223907068911",
+  appId: "1:223907068911:web:458515fa87cbfd7ef6141a",
+  measurementId: "G-06Z2BBJLF0"
 };
 
-const app = initializeApp(firebaseConfig);
-const db  = getDatabase(app);
+const app  = initializeApp(firebaseConfig);
+const db   = getDatabase(app);
+const auth = getAuth(app);
 
-// ── Speichern ───────────────────────────────────────────────
+// ── Datenbank: Speichern ────────────────────────────────────
 window.fbSet = async function(path, data) {
   await set(ref(db, path), data);
 };
 
-// ── Laden (einmalig) ────────────────────────────────────────
-window.fbLoad = function(path, cb) {
-  onValue(ref(db, path), snap => cb(snap.val()), { onlyOnce: true });
-};
-
-// ── Echtzeit-Listener ───────────────────────────────────────
+// ── Datenbank: Echtzeit-Listener ───────────────────────────
 window.fbListen = function(path, cb) {
   onValue(ref(db, path), snap => cb(snap.val()));
 };
+
+// ── Auth: E-Mail + Passwort Login ──────────────────────────
+window.fbSignIn = async function(email, password) {
+  return signInWithEmailAndPassword(auth, email, password);
+};
+
+// ── Auth: Logout ───────────────────────────────────────────
+window.fbSignOut = async function() {
+  return signOut(auth);
+};
+
+// ── Auth: Statusänderung beobachten ────────────────────────
+// Wird aufgerufen wenn Nutzer ein- oder ausloggt
+// uid: null = ausgeloggt, string = eingeloggt
+onAuthStateChanged(auth, user => {
+  window.dispatchEvent(new CustomEvent('fbAuthChanged', { detail: user }));
+});
 
 // Signal: Firebase bereit
 window.dispatchEvent(new Event('firebaseReady'));
@@ -251,18 +267,21 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div id="loginList"><div class="empty-state" style="padding:14px 0">Lade Spieler…</div></div>
     </div>
 
-    <!-- PIN-Panel -->
+    <!-- Admin-Login Panel (Firebase Auth) -->
     <div class="pin-panel" id="pinPanel">
       <button class="back-btn" onclick="showModeSelect()">← Zurück</button>
-      <div class="pin-label">Admin-PIN eingeben</div>
-      <div class="pin-row">
-        <input class="pin-d" type="password" maxlength="1" id="p0" oninput="onPI(0)" onkeydown="onPK(event,0)">
-        <input class="pin-d" type="password" maxlength="1" id="p1" oninput="onPI(1)" onkeydown="onPK(event,1)">
-        <input class="pin-d" type="password" maxlength="1" id="p2" oninput="onPI(2)" onkeydown="onPK(event,2)">
-        <input class="pin-d" type="password" maxlength="1" id="p3" oninput="onPI(3)" onkeydown="onPK(event,3)">
+      <div class="pin-label">Admin-Login</div>
+      <div class="fg" style="margin-bottom:10px">
+        <label>E-Mail</label>
+        <input type="email" id="admin-email" placeholder="admin@example.com" autocomplete="username">
+      </div>
+      <div class="fg" style="margin-bottom:14px">
+        <label>Passwort</label>
+        <input type="password" id="admin-password" placeholder="••••••••" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter') checkAdminLogin()">
       </div>
       <div class="pin-err" id="pinErr"></div>
-      <button class="btn btn-o btn-w" onclick="checkPin()">Einloggen</button>
+      <button class="btn btn-o btn-w" onclick="checkAdminLogin()" id="adminLoginBtn">Einloggen</button>
     </div>
   </div>
 </div>
@@ -517,7 +536,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
 // ════════════════════════════════════════════════════════
 // CONFIG
 // ════════════════════════════════════════════════════════
-const ADMIN_PIN    = '1234';   // ← PIN hier ändern
 const PHRASE_PREIS = 0.50;     // ← Festbetrag Phrasenschwein
 const PAGE_SIZE    = 15;       // Einträge pro Seite
 
@@ -538,6 +556,7 @@ let editingKatId = null;
 // FIREBASE INTEGRATION
 // ════════════════════════════════════════════════════════
 let fbReady = false;
+let fbAuthUser = null; // eingeloggter Firebase-User (Admin)
 
 function fbSet(path, data) {
   if (!fbReady) { console.warn('Firebase nicht bereit'); return Promise.resolve(); }
@@ -549,19 +568,31 @@ window.addEventListener('firebaseReady', () => {
   document.getElementById('fbDot').classList.add('ok');
   document.getElementById('fbLabel').textContent = 'Verbunden';
 
-  // Echtzeit-Listener: Daten immer aktuell halten
+  // Echtzeit-Listener – nur Daten laden, kein renderAll hier
+  // renderAll wird erst nach erfolgreichem App-Login aufgerufen
   window.fbListen('spieler',   val => { spieler   = val ? Object.values(val) : []; onDataUpdate(); });
   window.fbListen('buchungen', val => { buchungen = val ? Object.values(val) : []; onDataUpdate(); });
   window.fbListen('katalog',   val => { katalog   = val ? Object.values(val) : []; onDataUpdate(); });
 });
 
+// Auth-Zustandsänderung: Firebase meldet ob Admin eingeloggt ist
+window.addEventListener('fbAuthChanged', e => {
+  fbAuthUser = e.detail; // null = ausgeloggt, User-Objekt = eingeloggt
+  // Wenn Firebase-Session noch aktiv ist beim Neuladen der Seite,
+  // aber App-Login (me) nicht gesetzt: App-Zustand zurücksetzen
+  if (!fbAuthUser && me && me.rolle === 'admin') {
+    me = null;
+    document.getElementById('appWrap').style.display = 'none';
+    document.getElementById('loginWrap').style.display = 'flex';
+    showModeSelect();
+  }
+});
+
 function onDataUpdate() {
-  // Wird nach jedem Firebase-Update aufgerufen
   if (me) renderAll();
-  renderLogin(); // Spielerliste im Login aktuell halten
+  renderLogin();
 }
 
-// Fallback: Wenn Firebase nach 5s nicht bereit ist, zeige Warnung
 setTimeout(() => {
   if (!fbReady) {
     document.getElementById('fbLabel').textContent = 'Nicht verbunden';
@@ -576,7 +607,6 @@ function saveSpieler()   { return fbSet('spieler',   arrToObj(spieler)); }
 function saveBuchungen() { return fbSet('buchungen', arrToObj(buchungen)); }
 function saveKatalog()   { return fbSet('katalog',   arrToObj(katalog)); }
 
-// Firebase speichert Arrays besser als Objekte mit ID als Key
 function arrToObj(arr) {
   const o = {};
   arr.forEach(item => { o[item.id] = item; });
@@ -636,7 +666,10 @@ function showSpielerPanel() {
 function showPinPanel() {
   document.getElementById('pinPanel').classList.add('open');
   document.getElementById('spielerPanel').classList.remove('open');
-  clearPin(); document.getElementById('p0').focus();
+  document.getElementById('admin-email').value = '';
+  document.getElementById('admin-password').value = '';
+  document.getElementById('pinErr').textContent = '';
+  setTimeout(() => document.getElementById('admin-email').focus(), 50);
 }
 
 function renderLogin() {
@@ -652,26 +685,36 @@ function renderLogin() {
     </button>`).join('');
 }
 
-function onPI(i) {
-  document.getElementById('pinErr').textContent = '';
-  const v = document.getElementById('p'+i).value;
-  if (v && i < 3) document.getElementById('p'+(i+1)).focus();
-  if (i === 3 && v) checkPin();
+// Admin-Login via Firebase Authentication
+async function checkAdminLogin() {
+  const email    = document.getElementById('admin-email').value.trim();
+  const password = document.getElementById('admin-password').value;
+  const errEl    = document.getElementById('pinErr');
+  const btn      = document.getElementById('adminLoginBtn');
+
+  if (!email || !password) { errEl.textContent = 'Bitte E-Mail und Passwort eingeben.'; return; }
+
+  btn.textContent = 'Wird geprüft…';
+  btn.disabled = true;
+  errEl.textContent = '';
+
+  try {
+    await window.fbSignIn(email, password);
+    // fbAuthUser wird automatisch via fbAuthChanged gesetzt
+    me = { id: '__admin__', name: 'Admin', rolle: 'admin' };
+    showApp();
+  } catch (err) {
+    let msg = 'Login fehlgeschlagen.';
+    if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') msg = 'E-Mail oder Passwort falsch.';
+    if (err.code === 'auth/too-many-requests') msg = 'Zu viele Versuche – bitte kurz warten.';
+    if (err.code === 'auth/user-not-found')    msg = 'Kein Admin-Account gefunden.';
+    errEl.textContent = msg;
+  } finally {
+    btn.textContent = 'Einloggen';
+    btn.disabled = false;
+  }
 }
-function onPK(e, i) {
-  if (e.key==='Backspace' && !document.getElementById('p'+i).value && i>0) document.getElementById('p'+(i-1)).focus();
-  if (e.key==='Enter') checkPin();
-}
-function clearPin() {
-  for (let i=0;i<4;i++) document.getElementById('p'+i).value='';
-  document.getElementById('pinErr').textContent='';
-}
-function checkPin() {
-  const entered = [0,1,2,3].map(i=>document.getElementById('p'+i).value).join('');
-  if (entered.length < 4) return;
-  if (entered === ADMIN_PIN) { me = {id:'__admin__',name:'Admin',rolle:'admin'}; showApp(); }
-  else { document.getElementById('pinErr').textContent='Falscher PIN – bitte erneut versuchen.'; clearPin(); document.getElementById('p0').focus(); }
-}
+
 function loginAs(id) { me = spieler.find(s=>s.id===id); if (me) showApp(); }
 
 function showApp() {
@@ -683,11 +726,16 @@ function showApp() {
   switchTab('kasse');
   renderAll();
 }
-function logout() {
+
+async function logout() {
+  // Firebase-Session beenden wenn Admin
+  if (me && me.rolle === 'admin' && fbAuthUser) {
+    await window.fbSignOut();
+  }
   me = null;
   document.getElementById('appWrap').style.display = 'none';
   document.getElementById('loginWrap').style.display = 'flex';
-  showModeSelect(); clearPin();
+  showModeSelect();
   renderLogin();
 }
 
