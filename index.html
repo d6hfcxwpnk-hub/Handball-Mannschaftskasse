@@ -240,6 +240,37 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .fb-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
 .fb-dot{width:8px;height:8px;border-radius:50%;background:var(--err)}
 .fb-dot.ok{background:var(--ok)}
+
+/* ── RESPONSIVE MOBILE ── */
+@media(max-width:600px){
+  .login-card{width:95vw;padding:24px 16px}
+  .app-header{padding:0 12px;height:52px}
+  .app-logo{font-size:18px}
+  .user-badge{display:none}
+  .header-right{gap:5px}
+  .btn-link{font-size:11px;padding:3px 8px}
+  .fb-status{display:none}
+  .app-nav{padding:0 8px}
+  .nav-tab{font-size:13px;padding:11px 10px 8px}
+  .app-main{padding:14px 10px}
+  .grid-3{grid-template-columns:1fr;gap:10px}
+  .card{padding:14px 12px}
+  .form-row{flex-direction:column;gap:8px}
+  .fg{min-width:unset;width:100%}
+  .fg[style*="max-width"]{max-width:100%!important}
+  .fg[style*="flex:3"]{flex:unset}
+  .stat-value{font-size:24px}
+  .btn{font-size:13px;padding:8px 14px}
+  .btn-w{width:100%}
+  table{font-size:12px}
+  th,td{padding:7px 8px}
+  .rank-bar-wrap{display:none}
+  .filter-bar{flex-direction:column;gap:8px}
+  .filter-bar .fg{max-width:100%!important}
+  .betrag-badge{font-size:16px}
+  .modal{padding:20px 14px}
+  .card.strafe-card .form-row,.card.phrase-card .form-row{flex-direction:column}
+}
 </style>
 </head>
 <body>
@@ -553,10 +584,32 @@ let phPage   = 0;
 let editingKatId = null;
 
 // ════════════════════════════════════════════════════════
+// SESSION PERSISTENCE (Problem 4)
+// Spieler-Session für 4 Stunden merken via sessionStorage
+// ════════════════════════════════════════════════════════
+const SESSION_KEY = 'hb_session';
+const SESSION_TTL = 4 * 60 * 60 * 1000; // 4 Stunden in ms
+
+function saveSession(user) {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+    user, expires: Date.now() + SESSION_TTL
+  }));
+}
+function loadSession() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(SESSION_KEY));
+    if (!s || Date.now() > s.expires) { sessionStorage.removeItem(SESSION_KEY); return null; }
+    return s.user;
+  } catch { return null; }
+}
+function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
+
+// ════════════════════════════════════════════════════════
 // FIREBASE INTEGRATION
 // ════════════════════════════════════════════════════════
 let fbReady = false;
-let fbAuthUser = null; // eingeloggter Firebase-User (Admin)
+let fbAuthUser = null;
+let listenersAttached = false; // Problem 3: Listener nur einmal anhängen
 
 function fbSet(path, data) {
   if (!fbReady) { console.warn('Firebase nicht bereit'); return Promise.resolve(); }
@@ -568,20 +621,45 @@ window.addEventListener('firebaseReady', () => {
   document.getElementById('fbDot').classList.add('ok');
   document.getElementById('fbLabel').textContent = 'Verbunden';
 
-  // Echtzeit-Listener – nur Daten laden, kein renderAll hier
-  // renderAll wird erst nach erfolgreichem App-Login aufgerufen
-  window.fbListen('spieler',   val => { spieler   = val ? Object.values(val) : []; onDataUpdate(); });
-  window.fbListen('buchungen', val => { buchungen = val ? Object.values(val) : []; onDataUpdate(); });
-  window.fbListen('katalog',   val => { katalog   = val ? Object.values(val) : []; onDataUpdate(); });
+  // Problem 3: Listener nur einmal anhängen, nicht bei jedem renderAll neu
+  if (!listenersAttached) {
+    listenersAttached = true;
+    window.fbListen('spieler',   val => { spieler   = val ? Object.values(val) : []; onDataUpdate(); });
+    window.fbListen('buchungen', val => { buchungen = val ? Object.values(val) : []; onDataUpdate(); });
+    window.fbListen('katalog',   val => { katalog   = val ? Object.values(val) : []; onDataUpdate(); });
+  }
+
+  // Problem 4: Session nach Reload wiederherstellen
+  const saved = loadSession();
+  if (saved) {
+    // Spieler-Session wiederherstellen (warte bis Spielerliste geladen)
+    const tryRestore = () => {
+      if (saved.rolle === 'admin') {
+        // Admin wird via Firebase Auth wiederhergestellt (onAuthStateChanged)
+        return;
+      }
+      const sp = spieler.find(s => s.id === saved.id);
+      if (sp) { me = sp; showApp(); }
+      else if (spieler.length === 0) {
+        // Noch nicht geladen – kurz warten
+        setTimeout(tryRestore, 300);
+      }
+    };
+    setTimeout(tryRestore, 500);
+  }
 });
 
-// Auth-Zustandsänderung: Firebase meldet ob Admin eingeloggt ist
+// Admin-Session via Firebase Auth automatisch wiederherstellen
 window.addEventListener('fbAuthChanged', e => {
-  fbAuthUser = e.detail; // null = ausgeloggt, User-Objekt = eingeloggt
-  // Wenn Firebase-Session noch aktiv ist beim Neuladen der Seite,
-  // aber App-Login (me) nicht gesetzt: App-Zustand zurücksetzen
+  fbAuthUser = e.detail;
+  if (fbAuthUser && !me) {
+    // Firebase hat noch eine gültige Admin-Session → direkt einloggen
+    me = { id: '__admin__', name: 'Admin', rolle: 'admin' };
+    showApp();
+  }
   if (!fbAuthUser && me && me.rolle === 'admin') {
     me = null;
+    clearSession();
     document.getElementById('appWrap').style.display = 'none';
     document.getElementById('loginWrap').style.display = 'flex';
     showModeSelect();
@@ -715,24 +793,33 @@ async function checkAdminLogin() {
   }
 }
 
-function loginAs(id) { me = spieler.find(s=>s.id===id); if (me) showApp(); }
+function loginAs(id) {
+  me = spieler.find(s=>s.id===id);
+  if (me) {
+    saveSession(me); // Problem 4: Session speichern
+    showApp();
+  }
+}
 
 function showApp() {
   document.getElementById('loginWrap').style.display = 'none';
   document.getElementById('appWrap').style.display = 'block';
   document.getElementById('headerUser').textContent = me.name;
   const isAdmin = me.rolle === 'admin';
-  document.querySelectorAll('.admin-only').forEach(el => { el.style.display = isAdmin ? '' : 'none'; });
+  // Problem 1: Kasse-Tab immer sichtbar, nur Admin-Tabs einblenden/ausblenden
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = isAdmin ? '' : 'none';
+  });
   switchTab('kasse');
   renderAll();
 }
 
 async function logout() {
-  // Firebase-Session beenden wenn Admin
   if (me && me.rolle === 'admin' && fbAuthUser) {
     await window.fbSignOut();
   }
   me = null;
+  clearSession(); // Problem 4: Session löschen
   document.getElementById('appWrap').style.display = 'none';
   document.getElementById('loginWrap').style.display = 'flex';
   showModeSelect();
