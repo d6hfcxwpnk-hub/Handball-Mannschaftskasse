@@ -184,6 +184,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .tag-auslage{background:rgba(100,160,255,.15);color:#6eb5ff}
 .tag-strafe{background:rgba(255,106,53,.15);color:var(--acc2)}
 .tag-phrase{background:rgba(168,224,96,.15);color:#a8e060}
+.tag-monatsbeitrag{background:rgba(110,181,255,.15);color:#6eb5ff}
 .tag-schuld{background:rgba(255,170,0,.15);color:var(--warn)}
 .tag-admin{background:rgba(232,255,58,.15);color:var(--acc)}
 .tag-spieler{background:rgba(255,255,255,.08);color:var(--muted)}
@@ -343,9 +344,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <!-- ═══ KASSE ═══════════════════════════════════════════ -->
     <div class="section active" id="tab-kasse">
       <div class="grid-3">
-        <div class="stat-box"><div class="stat-label">Kassenstand</div><div class="stat-value sv-y" id="st-saldo">€0,00</div></div>
-        <div class="stat-box"><div class="stat-label">Zuflüsse</div><div class="stat-value sv-g" id="st-ein">€0,00</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Einnahmen + Einzahlungen + Strafen + Phrasen</div></div>
-        <div class="stat-box"><div class="stat-label">Abflüsse</div><div class="stat-value sv-r" id="st-aus">€0,00</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Ausgaben + Auslagen</div></div>
+        <div class="stat-box"><div class="stat-label">Buchguthaben</div><div class="stat-value sv-y" id="st-saldo">€0,00</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Einnahmen + Strafen + Phrasen − Ausgaben − Auslagen</div></div>
+        <div class="stat-box"><div class="stat-label">Einnahmen</div><div class="stat-value sv-g" id="st-ein">€0,00</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Einnahmen + Strafen + Phrasen</div></div>
+        <div class="stat-box"><div class="stat-label">Ausgaben</div><div class="stat-value sv-r" id="st-aus">€0,00</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Ausgaben + Auslagen</div></div>
       </div>
 
       <!-- Buchung erfassen (Admin) -->
@@ -414,7 +415,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <div class="card-title">Spieler-Salden</div>
         <p class="text-muted mb-2" style="font-size:12px">Negativ = Spieler schuldet der Kasse &nbsp;|&nbsp; Positiv = Kasse schuldet dem Spieler</p>
         <div class="table-wrap"><table>
-          <thead><tr><th>Spieler</th><th style="text-align:right">Einzahlungen</th><th style="text-align:right">Auslagen</th><th style="text-align:right">Strafen & Phrasen</th><th style="text-align:right">Saldo</th></tr></thead>
+          <thead><tr><th>Spieler</th><th style="text-align:right">Eingezahlt</th><th style="text-align:right">Auslagen</th><th style="text-align:right">Strafen</th><th style="text-align:right">Saldo</th></tr></thead>
           <tbody id="schuldenBody"></tbody>
         </table></div>
       </div>
@@ -487,15 +488,30 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="fg"><label>Rolle</label>
             <select id="sp-rolle"><option value="spieler">Spieler</option><option value="admin">Admin / Kassenwart</option></select>
           </div>
+          <div class="fg" style="max-width:180px"><label>Monatsbeitrag (€)</label>
+            <input type="number" id="sp-beitrag" placeholder="0.00" min="0" step="0.01" value="0">
+          </div>
         </div>
         <button class="btn btn-p" onclick="addSpieler()">Spieler anlegen</button>
       </div>
       <div class="card">
         <div class="card-title">Spielerliste</div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Name</th><th>Rolle</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Rolle</th><th style="text-align:right">Monatsbeitrag</th><th></th></tr></thead>
           <tbody id="spielerBody"></tbody>
         </table></div>
+      </div>
+      <!-- Monatsbeiträge manuell auslösen (Admin-Notfall) -->
+      <div class="card">
+        <div class="card-title">Monatsbeiträge</div>
+        <p class="text-muted mb-2">Beiträge werden automatisch am 01. jedes Monats gebucht wenn die App geöffnet wird. Hier kannst du sie manuell für einen Monat auslösen.</p>
+        <div class="form-row">
+          <div class="fg" style="max-width:200px"><label>Monat</label>
+            <input type="month" id="beitrag-monat">
+          </div>
+        </div>
+        <button class="btn btn-s" onclick="bucheMonatsbeitraege(document.getElementById('beitrag-monat').value, true)">Monatsbeiträge jetzt buchen</button>
+        <div class="alert alert-ok mt-2" id="beitragAlert"></div>
       </div>
     </div>
 
@@ -844,12 +860,14 @@ function showApp() {
   document.getElementById('appWrap').style.display = 'block';
   document.getElementById('headerUser').textContent = me.name;
   const isAdmin = me.rolle === 'admin';
-  // Problem 1: Kasse-Tab immer sichtbar, nur Admin-Tabs einblenden/ausblenden
+  // Kasse-Tab immer sichtbar, nur Admin-Tabs ein/ausblenden
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = isAdmin ? '' : 'none';
   });
   switchTab('kasse');
   renderAll();
+  // Monatsbeiträge automatisch prüfen (nur Admin kann buchen)
+  if (isAdmin) setTimeout(checkMonatsbeitraege, 500);
 }
 
 async function logout() {
@@ -878,25 +896,49 @@ function switchTab(tab) {
 // SPIELER
 // ════════════════════════════════════════════════════════
 function addSpieler() {
-  const name = document.getElementById('sp-name').value.trim();
-  const rolle = document.getElementById('sp-rolle').value;
+  const name    = document.getElementById('sp-name').value.trim();
+  const rolle   = document.getElementById('sp-rolle').value;
+  const beitrag = parseFloat(document.getElementById('sp-beitrag').value) || 0;
   if (!name) return;
-  spieler.push({id: uid(), name, rolle});
+  spieler.push({id: uid(), name, rolle, monatsbeitrag: beitrag});
   saveSpieler();
-  document.getElementById('sp-name').value = '';
+  document.getElementById('sp-name').value    = '';
+  document.getElementById('sp-beitrag').value = '0';
 }
 function delSpieler(id) {
   confirmDel(() => { spieler = spieler.filter(s=>s.id!==id); saveSpieler(); });
 }
+function editSpielerBeitrag(id) {
+  const input = document.getElementById('sp-edit-'+id);
+  if (!input) return;
+  const beitrag = parseFloat(input.value) || 0;
+  spieler = spieler.map(s => s.id===id ? {...s, monatsbeitrag: beitrag} : s);
+  saveSpieler();
+}
 function renderSpieler() {
   document.getElementById('spielerBody').innerHTML = spieler.length === 0
-    ? '<tr><td colspan="3" class="empty-state">Noch keine Spieler</td></tr>'
+    ? '<tr><td colspan="4" class="empty-state">Noch keine Spieler</td></tr>'
     : spieler.map(s=>`
         <tr>
           <td>${s.name}</td>
           <td><span class="tag tag-${s.rolle}">${s.rolle==='admin'?'Admin':'Spieler'}</span></td>
+          <td style="text-align:right">
+            <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+              <input class="td-input" id="sp-edit-${s.id}" type="number" step="0.01" min="0"
+                value="${s.monatsbeitrag||0}" style="max-width:80px;text-align:right"
+                onchange="editSpielerBeitrag('${s.id}')">
+              <span style="color:var(--muted);font-size:12px">€/Monat</span>
+            </div>
+          </td>
           <td><button class="ico-btn" onclick="delSpieler('${s.id}')">🗑</button></td>
         </tr>`).join('');
+
+  // Monatsbeitrag-Monat vorbelegen
+  const bm = document.getElementById('beitrag-monat');
+  if (bm && !bm.value) {
+    const now = new Date();
+    bm.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
 
   // Dropdowns befüllen
   const opts = spieler.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
@@ -1075,52 +1117,124 @@ function delStrafe(id) {
 }
 
 // ════════════════════════════════════════════════════════
+// MONATSBEITRÄGE (Punkt 8)
+// Prüft beim App-Start ob der aktuelle Monat bereits
+// gebucht wurde. Falls nicht → automatisch buchen.
+// ════════════════════════════════════════════════════════
+function monatKey(datum) {
+  // "2025-01" aus einem Datum-String
+  return datum.substring(0, 7);
+}
+
+function checkMonatsbeitraege() {
+  const now    = new Date();
+  const monat  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  bucheMonatsbeitraege(monat, false);
+}
+
+function bucheMonatsbeitraege(monat, manuell) {
+  if (!monat) return;
+  const alertEl = document.getElementById('beitragAlert');
+
+  // Bereits gebucht für diesen Monat?
+  const bereitsGebucht = buchungen.some(b =>
+    b.typ === 'monatsbeitrag' && monatKey(b.datum) === monat
+  );
+
+  if (bereitsGebucht && !manuell) return; // Auto: still halten
+  if (bereitsGebucht && manuell) {
+    if (alertEl) { alertEl.textContent = `Monatsbeiträge für ${monat} wurden bereits gebucht.`; alertEl.classList.add('show'); setTimeout(()=>alertEl.classList.remove('show'),4000); }
+    return;
+  }
+
+  const spielerMitBeitrag = spieler.filter(s => s.monatsbeitrag && s.monatsbeitrag > 0);
+  if (spielerMitBeitrag.length === 0) return;
+
+  const datum = monat + '-01';
+  spielerMitBeitrag.forEach(s => {
+    buchungen.unshift({
+      id: uid(),
+      typ: 'monatsbeitrag',
+      betrag: s.monatsbeitrag,
+      datum,
+      beschreibung: 'Monatsbeitrag ' + monat,
+      spielerId: s.id,
+      spielerName: s.name,
+    });
+  });
+  saveBuchungen();
+
+  if (manuell && alertEl) {
+    alertEl.textContent = `✓ ${spielerMitBeitrag.length} Monatsbeiträge für ${monat} gebucht.`;
+    alertEl.classList.add('show');
+    setTimeout(()=>alertEl.classList.remove('show'), 4000);
+  }
+}
+
+// ════════════════════════════════════════════════════════
 // RENDER KASSE
-// Kassenstand = Einzahlungen + Einnahmen + Strafen + Phrasen − Ausgaben − Auslagen
-// Spieler-Saldo = Einzahlungen + Auslagen − Strafen − Phrasen
+// Buchguthaben = Einnahmen + Strafen + Phrasen − Ausgaben − Auslagen
+// Einnahmen-Box = Einnahmen + Strafen + Phrasen
+// Ausgaben-Box  = Ausgaben + Auslagen
+// Einzahlungen + Monatsbeiträge wirken NUR auf Spieler-Saldo
+//
+// Spieler-Saldo = Einzahlungen + Auslagen − Strafen − Phrasen − Monatsbeiträge
 //   Negativ = Spieler schuldet Kasse, Positiv = Kasse schuldet Spieler
 // ════════════════════════════════════════════════════════
 function renderKasse() {
-  let zufluss = 0, abfluss = 0;
+  let einnahmen = 0, ausgaben = 0;
   buchungen.forEach(b => {
-    if (b.typ==='einnahme' || b.typ==='einzahlung' || b.typ==='strafe' || b.typ==='phrase') zufluss += b.betrag;
-    if (b.typ==='ausgabe'  || b.typ==='auslage') abfluss += b.betrag;
+    if (b.typ==='einnahme' || b.typ==='strafe' || b.typ==='phrase') einnahmen += b.betrag;
+    if (b.typ==='ausgabe'  || b.typ==='auslage') ausgaben += b.betrag;
+    // einzahlung + monatsbeitrag: kein Einfluss auf Buchguthaben
   });
-  const kassenstand = zufluss - abfluss;
+
+  const buchguthaben = einnahmen - ausgaben;
   const saldoEl = document.getElementById('st-saldo');
-  saldoEl.textContent = (kassenstand < 0 ? '−' : '') + fmt(kassenstand);
-  saldoEl.className = 'stat-value ' + (kassenstand < 0 ? 'sv-r' : 'sv-y');
-  document.getElementById('st-ein').textContent   = fmt(zufluss);
-  document.getElementById('st-aus').textContent   = fmt(abfluss);
+  saldoEl.textContent = (buchguthaben < 0 ? '−' : '') + fmt(buchguthaben);
+  saldoEl.className   = 'stat-value ' + (buchguthaben < 0 ? 'sv-r' : 'sv-y');
+  document.getElementById('st-ein').textContent = fmt(einnahmen);
+  document.getElementById('st-aus').textContent = fmt(ausgaben);
 
   renderBuchungen();
 
-  // Spieler-Salden: aggregiere pro Spieler-ID
-  const salden = {}; // {id: {name, einzahlung, auslage, strafen}}
-  spieler.forEach(s => { salden[s.id] = {name:s.name, einzahlung:0, auslage:0, strafen:0}; });
+  // ── Spieler-Salden ──────────────────────────────────
+  // Aggregiere pro Spieler-ID (Punkt 6: ein Eintrag pro Spieler)
+  const salden = {};
+
+  // Alle bekannten Spieler vorinitialisieren
+  spieler.forEach(s => {
+    salden[s.id] = { name: s.name, einzahlung: 0, auslage: 0, strafen: 0 };
+  });
 
   buchungen.forEach(b => {
     if (!b.spielerId) return;
-    if (!salden[b.spielerId]) salden[b.spielerId] = {name:b.spielerName, einzahlung:0, auslage:0, strafen:0};
-    if (b.typ==='einzahlung') salden[b.spielerId].einzahlung += b.betrag;
-    if (b.typ==='auslage')    salden[b.spielerId].auslage    += b.betrag;
-    if (b.typ==='strafe' || b.typ==='phrase') salden[b.spielerId].strafen += b.betrag;
+    // Spieler der zwischenzeitlich gelöscht wurde: trotzdem zeigen
+    if (!salden[b.spielerId]) {
+      salden[b.spielerId] = { name: b.spielerName, einzahlung: 0, auslage: 0, strafen: 0 };
+    }
+    if (b.typ==='einzahlung')                        salden[b.spielerId].einzahlung += b.betrag;
+    if (b.typ==='auslage')                           salden[b.spielerId].auslage    += b.betrag;
+    if (b.typ==='strafe' || b.typ==='phrase' || b.typ==='monatsbeitrag')
+                                                     salden[b.spielerId].strafen    += b.betrag;
   });
 
   // Nur Spieler mit mindestens einer Transaktion anzeigen
-  const entries = Object.values(salden).filter(s => s.einzahlung > 0 || s.auslage > 0 || s.strafen > 0);
-  entries.sort((a,b) => {
-    const saldoA = a.einzahlung + a.auslage - a.strafen;
-    const saldoB = b.einzahlung + b.auslage - b.strafen;
-    return saldoA - saldoB; // Größte Schulden oben
+  const entries = Object.values(salden)
+    .filter(s => s.einzahlung > 0 || s.auslage > 0 || s.strafen > 0);
+
+  entries.sort((a, b) => {
+    const sa = a.einzahlung + a.auslage - a.strafen;
+    const sb = b.einzahlung + b.auslage - b.strafen;
+    return sa - sb; // Größte Schulden oben
   });
 
   document.getElementById('schuldenBody').innerHTML = entries.length === 0
     ? '<tr><td colspan="5" class="empty-state">Noch keine Spieler-Buchungen</td></tr>'
     : entries.map(s => {
-        const saldo = s.einzahlung + s.auslage - s.strafen;
+        const saldo      = s.einzahlung + s.auslage - s.strafen;
         const saldoClass = saldo < 0 ? 'an' : saldo > 0 ? 'ap' : '';
-        const saldoSign  = saldo < 0 ? '−' : saldo > 0 ? '+' : '';
+        const saldoSign  = saldo < 0 ? '−'  : saldo > 0 ? '+' : '';
         return `<tr>
           <td><strong>${s.name}</strong></td>
           <td style="text-align:right" class="ap">+${fmt(s.einzahlung)}</td>
@@ -1267,7 +1381,7 @@ function exportKasse() {
 // ════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════
-function typLbl(t){return{einnahme:'Einnahme',ausgabe:'Ausgabe',einzahlung:'Einzahlung',auslage:'Auslage',strafe:'Strafe',phrase:'Phrase',schuld:'Schuld'}[t]||t}
+function typLbl(t){return{einnahme:'Einnahme',ausgabe:'Ausgabe',einzahlung:'Einzahlung',auslage:'Auslage',strafe:'Strafe',phrase:'Phrase',monatsbeitrag:'Monatsbeitrag',schuld:'Schuld'}[t]||t}
 function fmt(n){return'€'+Math.abs(n).toFixed(2).replace('.',',')}
 function fmtN(n){return n.toFixed(2).replace('.',',')}
 function today(){return new Date().toISOString().split('T')[0]}
