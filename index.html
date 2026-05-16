@@ -35,35 +35,40 @@ const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
 const auth = getAuth(app);
 
-// ── Datenbank: Speichern ────────────────────────────────────
+// Statt Event zu dispatchen: Funktionen direkt auf window setzen
+// und dann eine Init-Funktion aufrufen die der Haupt-Script registriert.
+// Das vermeidet das Race-Condition-Problem mit module-Events auf Mobile.
+
 window.fbSet = async function(path, data) {
   await set(ref(db, path), data);
 };
 
-// ── Datenbank: Echtzeit-Listener ───────────────────────────
 window.fbListen = function(path, cb) {
   onValue(ref(db, path), snap => cb(snap.val()));
 };
 
-// ── Auth: E-Mail + Passwort Login ──────────────────────────
 window.fbSignIn = async function(email, password) {
   return signInWithEmailAndPassword(auth, email, password);
 };
 
-// ── Auth: Logout ───────────────────────────────────────────
 window.fbSignOut = async function() {
   return signOut(auth);
 };
 
-// ── Auth: Statusänderung beobachten ────────────────────────
-// Wird aufgerufen wenn Nutzer ein- oder ausloggt
-// uid: null = ausgeloggt, string = eingeloggt
 onAuthStateChanged(auth, user => {
-  window.dispatchEvent(new CustomEvent('fbAuthChanged', { detail: user }));
+  if (window.onFbAuthChanged) window.onFbAuthChanged(user);
 });
 
-// Signal: Firebase bereit
-window.dispatchEvent(new Event('firebaseReady'));
+// Warte bis Haupt-Script bereit ist, dann initialisieren
+function tryInit() {
+  if (window.onFirebaseReady) {
+    window.onFirebaseReady();
+  } else {
+    // Haupt-Script noch nicht geladen – kurz warten
+    setTimeout(tryInit, 50);
+  }
+}
+tryInit();
 </script>
 
 <style>
@@ -622,14 +627,13 @@ function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
 
 // ════════════════════════════════════════════════════════
 // FIREBASE INTEGRATION
-// Kern-Problem: Listener feuern unabhängig voneinander.
-// Lösung: Erst wenn alle 3 Quellen mindestens einmal
-// geladen wurden, wird die App initialisiert.
+// Callback-Muster statt Events – zuverlässiger auf Mobile.
+// Das Modul-Script ruft window.onFirebaseReady() auf
+// sobald Firebase bereit ist.
 // ════════════════════════════════════════════════════════
 let fbReady    = false;
 let fbAuthUser = null;
 
-// Tracking welche Datenquellen bereits initial geladen wurden
 const dataLoaded = { spieler: false, buchungen: false, katalog: false };
 let appInitialized = false;
 
@@ -642,16 +646,16 @@ function fbSet(path, data) {
   return window.fbSet(path, data);
 }
 
-window.addEventListener('firebaseReady', () => {
+// Vom Firebase-Modul aufgerufen
+window.onFirebaseReady = function() {
   fbReady = true;
   document.getElementById('fbDot').classList.add('ok');
   document.getElementById('fbLabel').textContent = 'Verbunden';
 
-  // Listener je einmal registrieren
   window.fbListen('spieler', val => {
     spieler = val ? Object.values(val) : [];
     dataLoaded.spieler = true;
-    renderLogin(); // Sofort Login-Liste aktualisieren, nicht auf alle Daten warten
+    renderLogin(); // Sofort Login-Liste zeigen
     onDataArrived();
   });
   window.fbListen('buchungen', val => {
@@ -664,71 +668,61 @@ window.addEventListener('firebaseReady', () => {
     dataLoaded.katalog = true;
     onDataArrived();
   });
-});
+};
 
-function onDataArrived() {
-  if (!allDataReady()) return; // Warten bis alle drei geladen sind
-
-  if (!appInitialized) {
-    // Erster vollständiger Load: Session wiederherstellen
-    appInitialized = true;
-    tryRestoreSession();
-  } else {
-    // Folgeupdate (Echtzeit-Änderung von anderem Gerät)
-    if (me) renderAll();
-    renderLogin();
-  }
-}
-
-function tryRestoreSession() {
-  // Admin: Firebase Auth kümmert sich selbst (fbAuthChanged)
-  // Spieler: aus sessionStorage wiederherstellen
-  const saved = loadSession();
-  if (saved && saved.rolle !== 'admin') {
-    const sp = spieler.find(s => s.id === saved.id);
-    if (sp) {
-      me = sp;
-      showApp();
-      return;
-    }
-    // Spieler nicht mehr in Liste → Session ungültig
-    clearSession();
-  }
-  // Kein gültiger Spieler-Login: Login-Screen zeigen
-  // (Admin-Restore kommt via fbAuthChanged)
-  renderLogin();
-}
-
-// Admin-Session via Firebase Auth
-window.addEventListener('fbAuthChanged', e => {
-  fbAuthUser = e.detail;
-  if (fbAuthUser && !me) {
+// Auth-Callback direkt registrieren
+window.onFbAuthChanged = function(user) {
+  fbAuthUser = user;
+  if (user && !me) {
     me = { id: '__admin__', name: 'Admin', rolle: 'admin' };
-    // Nur zeigen wenn Daten bereits geladen
     if (allDataReady()) showApp();
-    // Sonst zeigt onDataArrived → tryRestoreSession nichts an,
-    // aber fbAuthChanged hat me gesetzt → nächster onDataArrived zeigt App
+    // Falls Daten noch nicht da: onDataArrived → tryRestoreSession
+    // findet me gesetzt und zeigt App
   }
-  if (!fbAuthUser && me && me.rolle === 'admin') {
+  if (!user && me && me.rolle === 'admin') {
     me = null;
     clearSession();
     document.getElementById('appWrap').style.display = 'none';
     document.getElementById('loginWrap').style.display = 'flex';
     showModeSelect();
   }
-});
+};
+
+function onDataArrived() {
+  if (!allDataReady()) return;
+
+  if (!appInitialized) {
+    appInitialized = true;
+    tryRestoreSession();
+  } else {
+    if (me) renderAll();
+    renderLogin();
+  }
+}
+
+function tryRestoreSession() {
+  const saved = loadSession();
+  if (saved && saved.rolle !== 'admin') {
+    const sp = spieler.find(s => s.id === saved.id);
+    if (sp) { me = sp; showApp(); return; }
+    clearSession();
+  }
+  // Admin kommt via onFbAuthChanged
+  // Falls Admin bereits gesetzt (Auth kam vor Daten): App zeigen
+  if (me && me.rolle === 'admin') { showApp(); return; }
+  renderLogin();
+}
 
 function onDataUpdate() {
-  // Nur für direkte Saves aufgerufen (nicht für Listener-Updates)
   if (me) renderAll();
 }
 
 setTimeout(() => {
   if (!fbReady) {
-    document.getElementById('fbLabel').textContent = 'Nicht verbunden';
-    console.warn('Firebase nicht verbunden – Konfiguration prüfen!');
+    document.getElementById('fbDot').style.background = 'var(--warn)';
+    document.getElementById('fbLabel').textContent = 'Nicht verbunden – Konfiguration prüfen';
   }
-}, 5000);
+}, 8000);
 
 // ════════════════════════════════════════════════════════
 // SPEICHERN (Firebase)
