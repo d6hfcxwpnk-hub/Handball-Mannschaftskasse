@@ -584,11 +584,11 @@ let phPage   = 0;
 let editingKatId = null;
 
 // ════════════════════════════════════════════════════════
-// SESSION PERSISTENCE (Problem 4)
-// Spieler-Session für 4 Stunden merken via sessionStorage
+// SESSION PERSISTENCE
+// Spieler-Session für 4 Stunden via sessionStorage
 // ════════════════════════════════════════════════════════
 const SESSION_KEY = 'hb_session';
-const SESSION_TTL = 4 * 60 * 60 * 1000; // 4 Stunden in ms
+const SESSION_TTL = 4 * 60 * 60 * 1000;
 
 function saveSession(user) {
   sessionStorage.setItem(SESSION_KEY, JSON.stringify({
@@ -606,10 +606,20 @@ function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
 
 // ════════════════════════════════════════════════════════
 // FIREBASE INTEGRATION
+// Kern-Problem: Listener feuern unabhängig voneinander.
+// Lösung: Erst wenn alle 3 Quellen mindestens einmal
+// geladen wurden, wird die App initialisiert.
 // ════════════════════════════════════════════════════════
-let fbReady = false;
+let fbReady    = false;
 let fbAuthUser = null;
-let listenersAttached = false; // Problem 3: Listener nur einmal anhängen
+
+// Tracking welche Datenquellen bereits initial geladen wurden
+const dataLoaded = { spieler: false, buchungen: false, katalog: false };
+let appInitialized = false;
+
+function allDataReady() {
+  return dataLoaded.spieler && dataLoaded.buchungen && dataLoaded.katalog;
+}
 
 function fbSet(path, data) {
   if (!fbReady) { console.warn('Firebase nicht bereit'); return Promise.resolve(); }
@@ -621,41 +631,67 @@ window.addEventListener('firebaseReady', () => {
   document.getElementById('fbDot').classList.add('ok');
   document.getElementById('fbLabel').textContent = 'Verbunden';
 
-  // Problem 3: Listener nur einmal anhängen, nicht bei jedem renderAll neu
-  if (!listenersAttached) {
-    listenersAttached = true;
-    window.fbListen('spieler',   val => { spieler   = val ? Object.values(val) : []; onDataUpdate(); });
-    window.fbListen('buchungen', val => { buchungen = val ? Object.values(val) : []; onDataUpdate(); });
-    window.fbListen('katalog',   val => { katalog   = val ? Object.values(val) : []; onDataUpdate(); });
-  }
-
-  // Problem 4: Session nach Reload wiederherstellen
-  const saved = loadSession();
-  if (saved) {
-    // Spieler-Session wiederherstellen (warte bis Spielerliste geladen)
-    const tryRestore = () => {
-      if (saved.rolle === 'admin') {
-        // Admin wird via Firebase Auth wiederhergestellt (onAuthStateChanged)
-        return;
-      }
-      const sp = spieler.find(s => s.id === saved.id);
-      if (sp) { me = sp; showApp(); }
-      else if (spieler.length === 0) {
-        // Noch nicht geladen – kurz warten
-        setTimeout(tryRestore, 300);
-      }
-    };
-    setTimeout(tryRestore, 500);
-  }
+  // Listener je einmal registrieren
+  window.fbListen('spieler', val => {
+    spieler = val ? Object.values(val) : [];
+    dataLoaded.spieler = true;
+    renderLogin(); // Sofort Login-Liste aktualisieren, nicht auf alle Daten warten
+    onDataArrived();
+  });
+  window.fbListen('buchungen', val => {
+    buchungen = val ? Object.values(val) : [];
+    dataLoaded.buchungen = true;
+    onDataArrived();
+  });
+  window.fbListen('katalog', val => {
+    katalog = val ? Object.values(val) : [];
+    dataLoaded.katalog = true;
+    onDataArrived();
+  });
 });
 
-// Admin-Session via Firebase Auth automatisch wiederherstellen
+function onDataArrived() {
+  if (!allDataReady()) return; // Warten bis alle drei geladen sind
+
+  if (!appInitialized) {
+    // Erster vollständiger Load: Session wiederherstellen
+    appInitialized = true;
+    tryRestoreSession();
+  } else {
+    // Folgeupdate (Echtzeit-Änderung von anderem Gerät)
+    if (me) renderAll();
+    renderLogin();
+  }
+}
+
+function tryRestoreSession() {
+  // Admin: Firebase Auth kümmert sich selbst (fbAuthChanged)
+  // Spieler: aus sessionStorage wiederherstellen
+  const saved = loadSession();
+  if (saved && saved.rolle !== 'admin') {
+    const sp = spieler.find(s => s.id === saved.id);
+    if (sp) {
+      me = sp;
+      showApp();
+      return;
+    }
+    // Spieler nicht mehr in Liste → Session ungültig
+    clearSession();
+  }
+  // Kein gültiger Spieler-Login: Login-Screen zeigen
+  // (Admin-Restore kommt via fbAuthChanged)
+  renderLogin();
+}
+
+// Admin-Session via Firebase Auth
 window.addEventListener('fbAuthChanged', e => {
   fbAuthUser = e.detail;
   if (fbAuthUser && !me) {
-    // Firebase hat noch eine gültige Admin-Session → direkt einloggen
     me = { id: '__admin__', name: 'Admin', rolle: 'admin' };
-    showApp();
+    // Nur zeigen wenn Daten bereits geladen
+    if (allDataReady()) showApp();
+    // Sonst zeigt onDataArrived → tryRestoreSession nichts an,
+    // aber fbAuthChanged hat me gesetzt → nächster onDataArrived zeigt App
   }
   if (!fbAuthUser && me && me.rolle === 'admin') {
     me = null;
@@ -667,8 +703,8 @@ window.addEventListener('fbAuthChanged', e => {
 });
 
 function onDataUpdate() {
+  // Nur für direkte Saves aufgerufen (nicht für Listener-Updates)
   if (me) renderAll();
-  renderLogin();
 }
 
 setTimeout(() => {
@@ -680,6 +716,8 @@ setTimeout(() => {
 
 // ════════════════════════════════════════════════════════
 // SPEICHERN (Firebase)
+// Nach dem Speichern kommt das Update automatisch
+// via Echtzeit-Listener zurück → onDataArrived → renderAll
 // ════════════════════════════════════════════════════════
 function saveSpieler()   { return fbSet('spieler',   arrToObj(spieler)); }
 function saveBuchungen() { return fbSet('buchungen', arrToObj(buchungen)); }
